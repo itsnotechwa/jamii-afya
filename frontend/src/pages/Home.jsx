@@ -1,5 +1,6 @@
 // src/pages/Home.jsx
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useClaims } from "../hooks/useClaims";
 import { fmt, pct } from "../helpers";              
 import StatusChip from "../components/StatusChip";
@@ -8,9 +9,11 @@ import DonateModal from "../components/ModalDonate";
 import Snackbar from "../components/SnackBar";
 import LoadingSpinner from "../components/LoadingSpinner";
 
-export default function HomePage({ setPage, setDetailClaim }) {
+export default function HomePage() {
   /* ----------  Hook ------------------------------------------------- */
   const { claims, loading, error, refetch } = useClaims();
+
+  const navigate = useNavigate();
   /* ----------------------------------------------------------------- */
 
   const [donating, setDonating] = useState(null);
@@ -61,7 +64,7 @@ export default function HomePage({ setPage, setDetailClaim }) {
           <button
             className="btn btn-primary"
             style={{ marginTop: 16 }}
-            onClick={() => setPage("new-claim")}
+            onClick={() => navigate("/claims/new")}
           >
             + Submit a Claim
           </button>
@@ -90,7 +93,7 @@ export default function HomePage({ setPage, setDetailClaim }) {
         </div>
         <button
           className="banner-cta"
-          onClick={() => setPage("new-claim")}
+          onClick={() => navigate("claims/new")}
         >
           + Submit a Claim →
         </button>
@@ -180,8 +183,7 @@ export default function HomePage({ setPage, setDetailClaim }) {
                 <button
                   className="btn btn-outline btn-sm"
                   onClick={() => {
-                    setDetailClaim(claim);
-                    setPage("detail");
+                    navigate('/claims/${claim.id}');
                   }}
                 >
                   View Details

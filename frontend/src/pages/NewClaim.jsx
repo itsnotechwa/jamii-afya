@@ -18,10 +18,7 @@ export default function NewClaimPage() {
     we keep the claim‑list hook so we can
     refresh the home‑page after a successful submit.
    ------------------------------------------------- */
-  const { refetch: refetchClaims } = useClaims();
-
-  // Get the JWT token from your auth system
-  const { token } = useAuth();         
+  const { refetch: refetchClaims } = useClaims();   
 
   // Form state
   const [form, setForm] = useState({ hospital: "", amount: "", desc: "" });
@@ -81,7 +78,7 @@ export default function NewClaimPage() {
       // Call the back‑end. The function throws on non‑2xx, so we
       // catch the error in the `catch` block below.
       // ---------------------------------------------------------
-      await submitClaim(payload, token);
+      await submitClaim(payload);
 
       // Success UI
       showSnack(

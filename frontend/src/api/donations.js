@@ -21,7 +21,8 @@ import api from "./axios";
 // ── Initiate STK push ─────────────────────────────────────────────────────────
 // phone: "0712345678" or "254712345678" — normalise on backend
 export const initiateStkPush = (claimId, amount, phone) =>
-  api.post("/api/donations/stk-push/", { claim_id: claimId, amount, phone });
+  api.post("/api/donations/stk-push/", { claim_id: claimId, amount, phone })
+  .then(r=>r.data);
 
 // ── Poll for STK result ───────────────────────────────────────────────────────
 // Returns { status: "pending" | "completed" | "failed" | "cancelled", ... }
@@ -44,7 +45,7 @@ export async function pollStkStatus(
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     await new Promise((r) => setTimeout(r, intervalMs));
 
-    const result = await getStkStatus(checkoutRequestId).then(r => r.data);
+    const result = await getStkStatus(checkoutRequestId);
 
     if (result.status === "completed") return result;
     if (result.status === "failed")    throw new Error("Payment failed. Please try again.");
