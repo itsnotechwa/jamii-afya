@@ -1,5 +1,4 @@
 from django.contrib import admin
-
 from django.urls import path,include
 
 from rest_framework.routers import DefaultRouter
@@ -16,7 +15,7 @@ router.register(r'', NotificationViewSet, basename='notification')
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    
+
     path('', include(router.urls)), 
 
     path('register/', RegisterView.as_view(), name='register'),

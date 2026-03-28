@@ -21,6 +21,9 @@ from rest_framework.views import APIView
 from .serializers import EmergencyRequestSerializer, VoteSerializer, EmergencyDocumentSerializer, GroupSerializer, GroupMemberSerializer, JoinGroupSerializer, RegisterSerializer, LoginSerializer, UserProfileSerializer
 
 from .models import *
+import logging
+
+logging.basicConfig(level=logging.INFO)
 
 
 
@@ -119,9 +122,7 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
         data = qs.aggregate(total=Sum('amount'), count=Count('id'))
         return Response(data)
 
-
-
-# The EmergencyRequestViewSet provides API endpoints for members to create emergency requests, upload supporting documents, and for group admins to vote on pending requests. It includes custom actions for voting and uploading documents, as well as a shortcut endpoint for retrieving all pending requests in the member's groups for admin dashboard purposes. The viewset also implements eligibility checks and triggers notifications and payouts based on the status of emergency requests.
+# The EmergencyRequestViewSet provides API endpoints for members to create emergency requests, view their requests, and for group admins to approve or reject requests. It includes custom actions for voting on requests, uploading supporting documents, and listing pending requests for admin review. The viewset ensures that only authenticated users can access these endpoints and that certain actions are restricted to group admins.
 class EmergencyRequestViewSet(viewsets.ModelViewSet):
     serializer_class   = EmergencyRequestSerializer
     permission_classes = [IsAuthenticated]
@@ -144,13 +145,11 @@ class EmergencyRequestViewSet(viewsets.ModelViewSet):
 
         serializer.save(claimant=user)
 
-        # Notifying group admins
+        # Notify group admins
         from apps.notifications.tasks import notify_admins_new_emergency
         notify_admins_new_emergency.delay(serializer.instance.id)
 
-
-    # Admin casts approve/reject vote. 
-    #Auto-disburses when threshold met.
+    # Admin voting endpoint for approving/rejecting emergency requests. Enforces that only group admins can vote, and that each admin can only vote once per request. Automatically updates the emergency request status to "approved" or "rejected" when the approval threshold is met, and triggers SMS notifications to the claimant and admins accordingly.
     @action(detail=True, methods=['post'])
     def vote(self, request, pk=None):
         """Admin casts approve/reject vote. Auto-disburses when threshold met."""
@@ -174,21 +173,28 @@ class EmergencyRequestViewSet(viewsets.ModelViewSet):
         serializer.is_valid(raise_exception=True)
 
         with transaction.atomic():
+            decision = serializer.validated_data['decision']
+            note     = serializer.validated_data.get('note', '')
+
             EmergencyApproval.objects.create(
                 emergency=emergency,
                 admin=request.user,
-                decision=serializer.validated_data['decision'],
-                note=serializer.validated_data.get('note', '')
+                decision=decision,
+                note=note,
             )
 
             approval_count = emergency.approvals.filter(decision='approve').count()
             reject_count   = emergency.approvals.filter(decision='reject').count()
 
-            if serializer.validated_data['decision'] == 'reject' and reject_count >= emergency.group.approval_threshold:
+            if decision == 'reject' and reject_count >= emergency.group.approval_threshold:
                 emergency.status           = 'rejected'
-                emergency.rejection_reason = serializer.validated_data.get('note', 'Rejected by admins.')
+                emergency.rejection_reason = note or 'Rejected by admins.'
                 emergency.resolved_at      = timezone.now()
                 emergency.save(update_fields=['status', 'rejection_reason', 'resolved_at'])
+
+                # SMS: tell claimant request was rejected
+                from apps.notifications.tasks import notify_emergency_rejected
+                notify_emergency_rejected.delay(emergency.id)
 
             elif approval_count >= emergency.group.approval_threshold:
                 emergency.status          = 'approved'
@@ -198,15 +204,21 @@ class EmergencyRequestViewSet(viewsets.ModelViewSet):
                 emergency.resolved_at = timezone.now()
                 emergency.save(update_fields=['status', 'amount_approved', 'resolved_at'])
 
+                # SMS: tell claimant they've been approved
+                from apps.notifications.tasks import notify_emergency_approved
+                notify_emergency_approved.delay(emergency.id)
+
                 # Trigger B2C payout async
                 from apps.mpesa.tasks import disburse_emergency_payout
                 disburse_emergency_payout.delay(emergency.id)
 
+            # SMS: confirm the vote back to the admin who just voted
+            from apps.notifications.tasks import notify_vote_cast
+            notify_vote_cast.delay(emergency.id, request.user.id, decision)
+
         return Response(EmergencyRequestSerializer(emergency).data)
 
-
-
-    #Attaching supporting documents to an emergency request.
+    # Admins can upload supporting documents (e.g. photos, hospital bills) to an emergency request through this endpoint. The uploaded documents are associated with the emergency request and can be viewed by group members when reviewing the request details.
     @action(detail=True, methods=['post'])
     def upload_document(self, request, pk=None):
         """Attach supporting documents to an emergency request."""
@@ -216,8 +228,7 @@ class EmergencyRequestViewSet(viewsets.ModelViewSet):
         serializer.save(emergency=emergency)
         return Response(serializer.data, status=201)
 
-
-    # Shortcut endpoint for admin dashboard to list all pending requests in the member's groups.
+    # Admin dashboard shortcut to list all pending requests in my groups.
     @action(detail=False, methods=['get'])
     def pending(self, request):
         """Shortcut: all pending requests in my groups (for admin dashboard)."""
@@ -278,20 +289,13 @@ class GroupViewSet(viewsets.ModelViewSet):
         serializer.save()
         return Response(serializer.data)
 
-
-
-# The NotificationSerializer is responsible for converting Notification model instances into JSON format for API responses
-# It does validating and deserializing incoming data for creating or updating notifications through the API. 
-# It includes fields that correspond to the model attributes, allowing for comprehensive representation of notifications in API responses.
+# The NotificationSerializer is responsible for converting Notification model instances into JSON format for API responses, as well as validating and deserializing incoming data for creating or updating notifications through the API. It includes fields that correspond to the model attributes, allowing for efficient management of notification statuses and content in the frontend application.
 class NotificationSerializer(ModelSerializer):
     class Meta:
         model  = Notification
         fields = ['id', 'event_type', 'title', 'body', 'is_read', 'reference_id', 'created_at']
 
-
-
-# The NotificationViewSet provides read-only API endpoints for users to retrieve their notifications, mark them as read, and get a count of unread notifications. 
-# It ensures that only authenticated users can access their notifications and includes custom actions for marking all notifications as read or marking individual notifications as read.
+# The NotificationViewSet provides API endpoints for users to retrieve their notifications, mark notifications as read, and get the count of unread notifications. It ensures that only authenticated users can access their notifications and allows for efficient management of notification statuses to enhance the user experience in the frontend application.
 class NotificationViewSet(ReadOnlyModelViewSet):
     serializer_class   = NotificationSerializer
     permission_classes = [IsAuthenticated]
@@ -301,13 +305,13 @@ class NotificationViewSet(ReadOnlyModelViewSet):
             recipient=self.request.user
         ).order_by('-created_at')
 
-    # Mark all notifications as read.
+    # Endpoint to mark all notifications as read, allowing the frontend to clear the unread count or badge when the user views their notifications.
     @action(detail=False, methods=['post'])
     def mark_all_read(self, request):
         self.get_queryset().filter(is_read=False).update(is_read=True)
         return Response({'detail': 'All notifications marked as read.'})
 
-    # Mark a single notification as read.
+    # Endpoint to mark a single notification as read when the user views it, allowing the frontend to update the notification's status and remove it from the unread count or badge.
     @action(detail=True, methods=['patch'])
     def mark_read(self, request, pk=None):
         notif = self.get_object()
@@ -315,7 +319,7 @@ class NotificationViewSet(ReadOnlyModelViewSet):
         notif.save(update_fields=['is_read'])
         return Response(NotificationSerializer(notif).data)
 
-    # Get count of unread notifications.
+    # Endpoint to retrieve the count of unread notifications for the authenticated user, allowing the frontend to display notification badges or alerts accordingly.
     @action(detail=False, methods=['get'])
     def unread_count(self, request):
         count = self.get_queryset().filter(is_read=False).count()
@@ -325,6 +329,7 @@ class NotificationViewSet(ReadOnlyModelViewSet):
 router = DefaultRouter()
 router.register(r'', NotificationViewSet, basename='notification')
 urlpatterns = [path('', include(router.urls))]
+
 
 
 
@@ -367,9 +372,6 @@ class ProfileView(generics.RetrieveUpdateAPIView):
 
 
 
-# The notify_payout_result task is responsible for sending notifications to the claimant of an emergency request regarding the result of their payout.
-# It sends a notification indicating whether the payout was successful or failed, and includes relevant details such as the amount approved or the reason for failure. 
-# This task is triggered after a payout attempt is made, allowing claimants to stay informed about the status of their emergency requests.
 class STKCallbackView(APIView):
     """
     Safaricom POSTs here after STK Push completes.
@@ -404,31 +406,32 @@ class STKCallbackView(APIView):
 
             # Confirm the pending contribution
             from apps.contributions.models import Contribution
-            Contribution.objects.filter(
-                member=tx.user,
-                status='pending',
-            ).order_by('-created_at').first().__class__.objects.filter(
+            contribution_qs = Contribution.objects.filter(
                 mpesa_ref__isnull=True,
                 member=tx.user,
                 status='pending',
-            ).update(
+            ).order_by('-created_at')
+            contribution = contribution_qs.first()
+            contribution_qs.update(
                 status='confirmed',
                 mpesa_ref=tx.mpesa_receipt,
                 confirmed_at=timezone.now()
             )
+            # SMS confirmation to contributor
+            if contribution:
+                from apps.notifications.tasks import notify_contribution_confirmed
+                notify_contribution_confirmed.delay(contribution.id)
         else:
             tx.status = 'failed'
             tx.save()
 
         return Response({'ResultCode': 0, 'ResultDesc': 'Accepted'})
 
-# The B2CResultView handles the POST requests from Safaricom regarding the result of B2C payouts.
-# It updates the status of the corresponding MpesaTransaction based on whether the payout was successful or failed.
-# It also updates the status of the related emergency request accordingly.
+
 class B2CResultView(APIView):
     """
     Safaricom POSTs B2C result here.
-    #Marks emergency as PAID or FAILED.
+    Marks emergency as PAID or FAILED.
     """
     permission_classes = [AllowAny]
 
@@ -476,7 +479,7 @@ class B2CResultView(APIView):
 
 
 class B2CTimeoutView(APIView):
-    #Safaricom calls this if the B2C request times out.
+    """Safaricom calls this if the B2C request times out."""
     permission_classes = [AllowAny]
 
     def post(self, request):

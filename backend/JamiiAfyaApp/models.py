@@ -236,10 +236,13 @@ class Notification(models.Model):
     class Channel(models.TextChoices):
         IN_APP = 'in_app', 'In App'
         SMS    = 'sms',    'SMS'
-
+        BOTH   = 'both',   'In App + SMS'
+    
     # Defines the possible event types for notifications, such as when an emergency is raised, a vote is cast, a payout is successful or failed, or when contributions are due or confirmed.
     class EventType(models.TextChoices):
         EMERGENCY_RAISED   = 'emergency_raised',   'Emergency Raised'
+        EMERGENCY_APPROVED      = 'emergency_approved',      'Emergency Approved'
+        EMERGENCY_REJECTED      = 'emergency_rejected',      'Emergency Rejected'
         VOTE_CAST          = 'vote_cast',           'Vote Cast'
         PAYOUT_SUCCESS     = 'payout_success',      'Payout Successful'
         PAYOUT_FAILED      = 'payout_failed',       'Payout Failed'
@@ -263,6 +266,42 @@ class Notification(models.Model):
     def __str__(self):
         return f"{self.recipient} | {self.event_type}"
 
+
+# The SMSLog model is designed to create an immutable record of every outbound SMS sent via Africa's Talking, which is used for audit purposes, retry logic, and cost tracking.
+# Each SMS log entry includes details such as the recipient's phone number, the message content, the status of the SMS (sent, failed, pending), the Africa's Talking message ID, cost, status code, the raw response from the API, and a timestamp for when the SMS was sent.
+class SMSLog(models.Model):
+    """
+    Immutable record of every outbound SMS via Africa's Talking.
+    Used for audit, retry logic, and cost tracking.
+    """
+    class Status(models.TextChoices):
+        SENT    = 'sent',    'Sent'
+        FAILED  = 'failed',  'Failed'
+        PENDING = 'pending', 'Pending'
+
+    notification    = models.OneToOneField(
+        Notification, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='sms_log'
+    )
+    recipient_phone = models.CharField(max_length=20)
+    message         = models.TextField()
+    status          = models.CharField(max_length=10, choices=Status.choices,
+                                       default=Status.PENDING)
+    at_message_id   = models.CharField(max_length=100, blank=True)
+    at_cost         = models.CharField(max_length=20, blank=True)
+    at_status_code  = models.CharField(max_length=10, blank=True)
+    raw_response    = models.JSONField(default=dict)
+    sent_at         = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'sms_logs'
+        indexes  = [
+            models.Index(fields=['recipient_phone', 'sent_at']),
+            models.Index(fields=['status']),
+        ]
+
+    def __str__(self):
+        return f"SMS to {self.recipient_phone} [{self.status}] {self.sent_at:%Y-%m-%d %H:%M}"
 
 
 # The User model extends Django's AbstractUser to use phone number as the primary login identifier, which is essential for integrating with M-Pesa for contributions and payouts.

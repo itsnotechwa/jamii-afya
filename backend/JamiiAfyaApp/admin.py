@@ -92,6 +92,24 @@ class NotificationAdmin(admin.ModelAdmin):
     search_fields = ['recipient__phone_number', 'title']
     readonly_fields = ['created_at']
 
+# Register the SMSLog model with the Django admin site, allowing administrators to view and manage SMS logs while ensuring that certain fields are read-only to maintain the integrity of SMS log records and preventing any modifications or deletions to them.
+@admin.register(SMSLog)
+class SMSLogAdmin(admin.ModelAdmin):
+    list_display   = ['recipient_phone', 'status', 'at_message_id',
+                      'at_cost', 'at_status_code', 'sent_at']
+    list_filter    = ['status']
+    search_fields  = ['recipient_phone', 'at_message_id']
+    readonly_fields = ['notification', 'recipient_phone', 'message', 'status',
+                       'at_message_id', 'at_cost', 'at_status_code',
+                       'raw_response', 'sent_at']
+
+    def has_add_permission(self, request):
+        return False  # SMS logs are system-generated
+
+    def has_delete_permission(self, request, obj=None):
+        return False  # Never delete SMS logs
+
+
 # Register the custom User model with the Django admin site, allowing administrators to manage user accounts while providing a customized interface that includes additional fields specific to the application's user model.
 @admin.register(User)
 class UserAdmin(BaseUserAdmin):
