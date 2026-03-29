@@ -1,3 +1,6 @@
 from django.contrib import admin
+from .models import EmergencyRequest, EmergencyDocument, EmergencyApproval
 
-# Register your models here.
+admin.site.register(EmergencyRequest)
+admin.site.register(EmergencyDocument)
+admin.site.register(EmergencyApproval)

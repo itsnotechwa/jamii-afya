@@ -51,6 +51,7 @@ LOCAL_APPS = [
     'mpesa',
     'notifications',
     'audit',
+    'JamiiAfyaApp',
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS # + LOCAL_APPS
