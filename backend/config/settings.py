@@ -254,12 +254,21 @@ from decouple import config
 from datetime import timedelta
 import os
 
+from django.core.exceptions import ImproperlyConfigured
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # ── Security ───────────────────────────────────────────────────────────────────
-SECRET_KEY = config('SECRET_KEY')
+# Local dev: optional default. Production (DEBUG=False): set SECRET_KEY (e.g. Railway Variables).
+_DEV_SECRET_KEY = 'django-insecure-local-only-set-secret-key-env-in-production'
 DEBUG = config('DEBUG', default=False, cast=bool)
+SECRET_KEY = config('SECRET_KEY', default=_DEV_SECRET_KEY)
+if not DEBUG and SECRET_KEY == _DEV_SECRET_KEY:
+    raise ImproperlyConfigured(
+        'SECRET_KEY is missing or still the dev default while DEBUG=False. '
+        'Add SECRET_KEY in your host (Railway: Project → Variables → New Variable).'
+    )
 ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='').split(',')
 
 # ── Applications ───────────────────────────────────────────────────────────────
