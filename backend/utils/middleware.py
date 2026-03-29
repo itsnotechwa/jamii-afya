@@ -17,6 +17,16 @@ class AuditLogMiddleware:
         self.get_response = get_response
 
     def __call__(self, request):
+        # Cache the raw body BEFORE passing to the view so that both DRF and
+        # this middleware can read it without exhausting the stream.
+        if request.method in WRITE_METHODS and request.content_type == 'application/json':
+            try:
+                # Reading here populates Django's internal _body cache.
+                # Subsequent reads (by DRF or us) hit the cache, not the stream.
+                _ = request.body
+            except Exception:
+                pass
+
         response = self.get_response(request)
 
         if request.method not in WRITE_METHODS:

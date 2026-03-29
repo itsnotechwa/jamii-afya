@@ -12,12 +12,12 @@ class NotificationAdmin(admin.ModelAdmin):
 
 @admin.register(SMSLog)
 class SMSLogAdmin(admin.ModelAdmin):
-    list_display   = ['recipient_phone', 'status', 'at_message_id',
-                      'at_cost', 'at_status_code', 'sent_at']
+    list_display   = ['recipient_phone', 'status', 'provider_message_id',
+                      'provider_status', 'sent_at']
     list_filter    = ['status']
-    search_fields  = ['recipient_phone', 'at_message_id']
+    search_fields  = ['recipient_phone', 'provider_message_id']
     readonly_fields = ['notification', 'recipient_phone', 'message', 'status',
-                       'at_message_id', 'at_cost', 'at_status_code',
+                       'provider_message_id', 'provider_status',
                        'raw_response', 'sent_at']
 
     def has_add_permission(self, request):

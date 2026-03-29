@@ -1,6 +1,7 @@
 from rest_framework.viewsets import ReadOnlyModelViewSet
 from rest_framework.serializers import ModelSerializer
 from rest_framework.permissions import IsAuthenticated, IsAdminUser
+from drf_spectacular.utils import extend_schema
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .models import AuditLog
@@ -13,6 +14,7 @@ class AuditLogSerializer(ModelSerializer):
                   'ip_address', 'timestamp']
 
 
+@extend_schema(tags=['Audit'])
 class AuditLogViewSet(ReadOnlyModelViewSet):
     """Superadmin-only: full audit trail for compliance."""
     serializer_class   = AuditLogSerializer

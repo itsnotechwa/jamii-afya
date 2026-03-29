@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from drf_spectacular.utils import extend_schema_field
 from .models import Group, GroupMember
 import secrets
 
@@ -9,14 +10,20 @@ class GroupSerializer(serializers.ModelSerializer):
 
     class Meta:
         model  = Group
-        fields = ['id', 'name', 'description', 'invite_code', 'is_active',
-                  'min_contributions_to_qualify', 'max_payout_amount',
-                  'approval_threshold', 'member_count', 'total_pool', 'created_at']
+        fields = [
+            'id', 'name', 'description', 'invite_code', 'is_active',
+            'contribution_frequency', 'contribution_deadline_day',
+            'contribution_amount', 'paybill_number',
+            'min_contributions_to_qualify', 'max_payout_amount',
+            'approval_threshold', 'member_count', 'total_pool', 'created_at',
+        ]
         read_only_fields = ['invite_code', 'created_at']
 
+    @extend_schema_field(serializers.IntegerField())
     def get_member_count(self, obj):
         return obj.memberships.filter(status='active').count()
 
+    @extend_schema_field(serializers.DecimalField(max_digits=12, decimal_places=2))
     def get_total_pool(self, obj):
         from apps.contributions.models import Contribution
         from django.db.models import Sum

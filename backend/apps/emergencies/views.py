@@ -1,23 +1,29 @@
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
+from drf_spectacular.utils import extend_schema
 from rest_framework.response import Response
 from django.utils import timezone
 from django.db import transaction
+from django.db.models import Count, Q
 from .models import EmergencyRequest, EmergencyApproval, EmergencyDocument
 from .serializers import EmergencyRequestSerializer, VoteSerializer, EmergencyDocumentSerializer
 from utils.permissions import IsGroupAdmin
 from utils.eligibility import check_eligibility
 
 
+@extend_schema(tags=['Emergencies'])
 class EmergencyRequestViewSet(viewsets.ModelViewSet):
     serializer_class   = EmergencyRequestSerializer
     permission_classes = [IsAuthenticated]
+    queryset           = EmergencyRequest.objects.none()  # required for schema introspection
 
     def get_queryset(self):
         return EmergencyRequest.objects.filter(
             group__memberships__user=self.request.user,
             group__memberships__status='active'
+        ).annotate(
+            approval_count=Count('approvals', filter=Q(approvals__decision='approve'))
         ).select_related('claimant', 'group').prefetch_related('documents', 'approvals').distinct()
 
     def perform_create(self, serializer):

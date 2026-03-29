@@ -17,7 +17,10 @@ class Contribution(models.Model):
     amount     = models.DecimalField(max_digits=10, decimal_places=2)
     status     = models.CharField(max_length=10, choices=Status.choices, default=Status.PENDING)
     mpesa_ref  = models.CharField(max_length=50, blank=True, null=True, unique=True)
-    period     = models.CharField(max_length=7, help_text='YYYY-MM e.g. 2024-01')
+    period     = models.CharField(
+        max_length=10,
+        help_text='YYYY-MM (monthly), YYYY-WNN (weekly e.g. 2024-W03), YYYY-MM-DD (daily)',
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     confirmed_at = models.DateTimeField(null=True, blank=True)
 

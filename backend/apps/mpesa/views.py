@@ -1,5 +1,7 @@
 import logging
 from rest_framework.views import APIView
+from drf_spectacular.utils import extend_schema, inline_serializer
+import rest_framework.fields as f
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny
 from django.utils import timezone
@@ -8,6 +10,12 @@ from .models import MpesaTransaction
 logger = logging.getLogger(__name__)
 
 
+@extend_schema(
+    tags=['M-Pesa'],
+    request=inline_serializer('STKCallbackRequest', fields={}),
+    responses={200: inline_serializer('MpesaCallbackResponse', fields={'ResultCode': f.IntegerField(), 'ResultDesc': f.CharField()})},
+    description='Safaricom STK Push callback. Called by Safaricom after payment completes. Internal use only.',
+)
 class STKCallbackView(APIView):
     """
     Safaricom POSTs here after STK Push completes.
@@ -36,34 +44,47 @@ class STKCallbackView(APIView):
                 i['Name']: i.get('Value')
                 for i in callback.get('CallbackMetadata', {}).get('Item', [])
             }
-            tx.mpesa_receipt = items.get('MpesaReceiptNumber', '')
-            tx.status        = 'success'
+            tx.mpesa_receipt        = items.get('MpesaReceiptNumber', '')
+            tx.mpesa_transaction_id = items.get('TransactionID', '') or items.get('MpesaReceiptNumber', '')
+            tx.status               = 'success'
             tx.save()
 
-            # Confirm the pending contribution
+            # Confirm the linked contribution
             from apps.contributions.models import Contribution
-            contribution_qs = Contribution.objects.filter(
-                mpesa_ref__isnull=True,
-                member=tx.user,
-                status='pending',
-            ).order_by('-created_at')
-            contribution = contribution_qs.first()
-            contribution_qs.update(
-                status='confirmed',
-                mpesa_ref=tx.mpesa_receipt,
-                confirmed_at=timezone.now()
-            )
-            # SMS confirmation to contributor
+            contribution = Contribution.objects.filter(id=tx.reference_id).first()
             if contribution:
+                contribution.status       = 'confirmed'
+                contribution.mpesa_ref    = tx.mpesa_receipt
+                contribution.confirmed_at = timezone.now()
+                contribution.save(update_fields=['status', 'mpesa_ref', 'confirmed_at'])
+
                 from apps.notifications.tasks import notify_contribution_confirmed
                 notify_contribution_confirmed.delay(contribution.id)
         else:
+            # ResultCode 1032 = user cancelled; any other non-zero = failure.
             tx.status = 'failed'
             tx.save()
+
+            # Mark contribution failed only if no other successful TX exists for it.
+            from apps.contributions.models import Contribution
+            contribution = Contribution.objects.filter(id=tx.reference_id).first()
+            if contribution and contribution.status == 'pending':
+                has_success = MpesaTransaction.objects.filter(
+                    reference_id=tx.reference_id, status='success'
+                ).exists()
+                if not has_success:
+                    contribution.status = 'failed'
+                    contribution.save(update_fields=['status'])
 
         return Response({'ResultCode': 0, 'ResultDesc': 'Accepted'})
 
 
+@extend_schema(
+    tags=['M-Pesa'],
+    request=inline_serializer('B2CResultRequest', fields={}),
+    responses={200: inline_serializer('B2CResultResponse', fields={'ResultCode': f.IntegerField(), 'ResultDesc': f.CharField()})},
+    description='Safaricom B2C result callback. Called when a payout completes or fails. Internal use only.',
+)
 class B2CResultView(APIView):
     """
     Safaricom POSTs B2C result here.
@@ -114,6 +135,12 @@ class B2CResultView(APIView):
         return Response({'ResultCode': 0, 'ResultDesc': 'Accepted'})
 
 
+@extend_schema(
+    tags=['M-Pesa'],
+    request=inline_serializer('B2CTimeoutRequest', fields={}),
+    responses={200: inline_serializer('B2CTimeoutResponse', fields={'ResultCode': f.IntegerField(), 'ResultDesc': f.CharField()})},
+    description='Safaricom B2C timeout callback. Called when a payout request times out. Internal use only.',
+)
 class B2CTimeoutView(APIView):
     """Safaricom calls this if the B2C request times out."""
     permission_classes = [AllowAny]

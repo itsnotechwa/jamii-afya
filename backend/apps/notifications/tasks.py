@@ -27,7 +27,7 @@ def _create_and_sms(recipient, event_type, title, body, reference_id, sms_messag
     send_sms(phone=phone, message=sms_message, notification=notif)
 
 
-# ── Task 1: New emergency raised — alert all group admins ──────────────────────
+# ── Task 1: New emergency raised — alert ALL active group members ──────────────
 
 @shared_task
 def notify_admins_new_emergency(emergency_id: int):
@@ -36,33 +36,47 @@ def notify_admins_new_emergency(emergency_id: int):
     from apps.notifications.sms_service import SMSTemplates
 
     emergency = EmergencyRequest.objects.select_related('claimant', 'group').get(id=emergency_id)
-    admins    = GroupMember.objects.filter(
-        group=emergency.group, role='admin', status='active'
-    ).select_related('user')
+    # PDF spec: notify ALL group members, not only admins
+    members = GroupMember.objects.filter(
+        group=emergency.group, status='active'
+    ).exclude(user=emergency.claimant).select_related('user')
 
-    for membership in admins:
-        admin = membership.user
-        sms   = SMSTemplates.emergency_raised_admin(
-            claimant_name  = emergency.claimant.get_full_name(),
-            emergency_type = emergency.emergency_type,
-            amount         = float(emergency.amount_requested),
-            group_name     = emergency.group.name,
-        )
+    for membership in members:
+        recipient = membership.user
+        is_admin  = membership.role == 'admin'
+        if is_admin:
+            sms = SMSTemplates.emergency_raised_admin(
+                claimant_name  = emergency.claimant.get_full_name(),
+                emergency_type = emergency.emergency_type,
+                amount         = float(emergency.amount_requested),
+                group_name     = emergency.group.name,
+            )
+            title = 'New Emergency Request — Vote Required'
+        else:
+            sms = (
+                f"[JamiiFund] {emergency.claimant.get_full_name()} in "
+                f"{emergency.group.name} has raised a {emergency.emergency_type} "
+                f"emergency requesting KES {emergency.amount_requested:,.0f}. "
+                f"Check the app for details."
+            )
+            title = 'New Emergency Request'
+
         _create_and_sms(
-            recipient    = admin,
+            recipient    = recipient,
             event_type   = 'emergency_raised',
-            title        = 'New Emergency Request',
+            title        = title,
             body         = (
                 f"{emergency.claimant.get_full_name()} has raised a "
                 f"{emergency.emergency_type} emergency requesting "
-                f"KES {emergency.amount_requested:,} in {emergency.group.name}. "
-                f"Your vote is needed."
+                f"KES {emergency.amount_requested:,} in {emergency.group.name}."
             ),
             reference_id = emergency_id,
             sms_message  = sms,
         )
 
-    logger.info(f"Notified {admins.count()} admins (in-app + SMS) about emergency {emergency_id}")
+    logger.info(
+        f"Notified {members.count()} group members (in-app + SMS) about emergency {emergency_id}"
+    )
 
 
 # ── Task 2: Emergency approved — notify claimant ───────────────────────────────

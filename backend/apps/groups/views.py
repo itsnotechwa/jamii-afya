@@ -1,6 +1,7 @@
 from rest_framework import generics, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
+from drf_spectacular.utils import extend_schema
 from rest_framework.response import Response
 from django.shortcuts import get_object_or_404
 from .models import Group, GroupMember
@@ -8,9 +9,11 @@ from .serializers import GroupSerializer, GroupMemberSerializer, JoinGroupSerial
 from utils.permissions import IsGroupAdmin
 
 
+@extend_schema(tags=['Groups'])
 class GroupViewSet(viewsets.ModelViewSet):
     serializer_class   = GroupSerializer
     permission_classes = [IsAuthenticated]
+    queryset           = Group.objects.none()  # required for schema introspection
 
     def get_queryset(self):
         # Only groups the user belongs to

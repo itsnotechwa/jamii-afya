@@ -5,6 +5,11 @@ from django.conf import settings
 class Group(models.Model):
     """A chama, welfare group, or neighbourhood association."""
 
+    class ContributionFrequency(models.TextChoices):
+        DAILY   = 'daily',   'Daily'
+        WEEKLY  = 'weekly',  'Weekly'
+        MONTHLY = 'monthly', 'Monthly'
+
     name        = models.CharField(max_length=150)
     description = models.TextField(blank=True)
     created_by  = models.ForeignKey(settings.AUTH_USER_MODEL,
@@ -13,6 +18,39 @@ class Group(models.Model):
     invite_code = models.CharField(max_length=12, unique=True)
     is_active   = models.BooleanField(default=True)
     created_at  = models.DateTimeField(auto_now_add=True)
+
+    # ── Contribution schedule ─────────────────────────────────────────────────
+    contribution_frequency  = models.CharField(
+        max_length=10,
+        choices=ContributionFrequency.choices,
+        default=ContributionFrequency.MONTHLY,
+        help_text='How often members are expected to contribute',
+    )
+    contribution_deadline_day = models.PositiveSmallIntegerField(
+        null=True, blank=True,
+        help_text=(
+            'Day of month (1-28) for monthly; '
+            'day of week (0=Mon…6=Sun) for weekly; '
+            'unused for daily'
+        ),
+    )
+    contribution_amount = models.DecimalField(
+        max_digits=10, decimal_places=2, null=True, blank=True,
+        help_text='Agreed per-period contribution amount in KES',
+    )
+
+    # ── M-Pesa collection account (group paybill/till) ────────────────────────
+    paybill_number = models.CharField(
+        max_length=20, blank=True,
+        help_text='Safaricom paybill or till number for C2B collections',
+    )
+    payment_type = models.CharField(
+        max_length=10,
+        choices=[('paybill', 'PayBill'), ('buy_goods', 'Buy Goods')],
+        default='buy_goods',
+        blank=True,
+        help_text='M-Pesa payment type: paybill (CustomerPayBillOnline) or buy_goods (CustomerBuyGoodsOnline)',
+    )
 
     # ── Payout rules ──────────────────────────────────────────────────────────
     min_contributions_to_qualify = models.PositiveIntegerField(default=3)

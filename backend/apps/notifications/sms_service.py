@@ -1,86 +1,82 @@
 """
-Africa's Talking SMS Service
+CommsGrid SMS Service
 Handles all outbound SMS for JamiiFund events.
-Docs: https://developers.africastalking.com/docs/sms/sending
+Docs: https://sms.paygrid.co.ke
 """
 import logging
-import africastalking
+import requests
 from django.conf import settings
 
 logger = logging.getLogger(__name__)
 
+COMMSGRID_API_URL = "https://sms.paygrid.co.ke/api/sms/send"
 
-class ATSmsService:
+
+class CommsGridSmsService:
     """
-    Thin wrapper around the Africa's Talking SMS API.
-    Initialises once; switch AT_ENVIRONMENT=production to go live.
+    Thin wrapper around the CommsGrid SMS REST API.
+    Raises no exceptions — SMS failure must never break app flow.
     """
 
-    _initialised = False
-
-    @classmethod
-    def _init(cls):
-        if not cls._initialised:
-            africastalking.initialize(
-                username=settings.AT_USERNAME,
-                api_key=settings.AT_API_KEY,
-            )
-            cls._initialised = True
-
-    @classmethod
-    def _normalize_phone(cls, phone: str) -> str:
-        """Ensure phone is in international format e.g. +254712345678"""
-        phone = str(phone).strip().replace(' ', '')
+    @staticmethod
+    def _normalize_phone(phone: str) -> str:
+        """Ensure phone is in international format e.g. 254712345678 (no + prefix)."""
+        phone = str(phone).strip().replace(' ', '').replace('+', '')
         if phone.startswith('0'):
-            phone = '+254' + phone[1:]
-        elif phone.startswith('254') and not phone.startswith('+'):
-            phone = '+' + phone
+            phone = '254' + phone[1:]
         return phone
 
     @classmethod
     def send(cls, phone: str, message: str) -> dict:
         """
-        Send a single SMS.
-        Returns the Africa's Talking response dict.
-        Logs errors but does NOT raise — SMS failure must never break app flow.
+        Send a single SMS via CommsGrid.
+
+        Returns the parsed JSON response dict, or an error dict on failure.
+        Never raises — callers check the returned dict.
         """
-        cls._init()
         phone = cls._normalize_phone(phone)
 
+        payload = {
+            "recipient": phone,
+            "message":   message,
+            "sender_id": settings.COMMSGRID_SENDER_ID,
+        }
+        headers = {
+            "Content-Type":  "application/json",
+            "Authorization": f"Bearer {settings.COMMSGRID_API_KEY}",
+        }
+
         try:
-            sms      = africastalking.SMS
-            response = sms.send(
-                message=message,
-                recipients=[phone],
-                sender_id=settings.AT_SENDER_ID or None,  # None = shortcode default
+            resp = requests.post(
+                COMMSGRID_API_URL,
+                json=payload,
+                headers=headers,
+                timeout=10,
             )
-            logger.info(f"AT SMS sent to {phone}: {response}")
-            return response
+            resp.raise_for_status()
+            data = resp.json()
+            logger.info(f"CommsGrid SMS sent to {phone}: {data}")
+            return data
+        except requests.exceptions.HTTPError as exc:
+            logger.error(f"CommsGrid SMS HTTP error to {phone}: {exc} — {exc.response.text}")
+            return {"error": str(exc), "detail": exc.response.text}
         except Exception as exc:
-            logger.error(f"AT SMS FAILED to {phone}: {exc}")
+            logger.error(f"CommsGrid SMS FAILED to {phone}: {exc}")
             return {'error': str(exc)}
 
     @classmethod
-    def send_bulk(cls, recipients: list[dict], message: str) -> dict:
+    def send_bulk(cls, recipients: list[dict], message: str) -> list[dict]:
         """
-        Send the same message to multiple phones.
-        recipients: [{'phone': '+254...', 'name': 'John'}, ...]
+        Send the same message to multiple phones via CommsGrid.
+        recipients: [{'phone': '0712345678', 'name': 'John'}, ...]
+        Returns a list of per-recipient result dicts.
         """
-        cls._init()
-        phones = [cls._normalize_phone(r['phone']) for r in recipients]
-
-        try:
-            sms      = africastalking.SMS
-            response = sms.send(
-                message=message,
-                recipients=phones,
-                sender_id=settings.AT_SENDER_ID or None,
-            )
-            logger.info(f"AT bulk SMS to {len(phones)} recipients: {response}")
-            return response
-        except Exception as exc:
-            logger.error(f"AT bulk SMS FAILED: {exc}")
-            return {'error': str(exc)}
+        results = []
+        for recipient in recipients:
+            result = cls.send(recipient['phone'], message)
+            result['phone'] = cls._normalize_phone(recipient['phone'])
+            results.append(result)
+        return results
 
 
 # ── Pre-built message templates ───────────────────────────────────────────────

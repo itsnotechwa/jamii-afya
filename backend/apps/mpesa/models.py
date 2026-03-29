@@ -23,6 +23,10 @@ class MpesaTransaction(models.Model):
     phone             = models.CharField(max_length=15)
     amount            = models.DecimalField(max_digits=10, decimal_places=2)
     mpesa_receipt     = models.CharField(max_length=50, blank=True, null=True, unique=True)
+    mpesa_transaction_id = models.CharField(
+        max_length=50, blank=True, null=True,
+        help_text='Safaricom TransactionID returned in callback metadata (distinct from receipt number)',
+    )
     checkout_request_id = models.CharField(max_length=100, blank=True, null=True)
     merchant_request_id = models.CharField(max_length=100, blank=True, null=True)
     result_code       = models.CharField(max_length=10, blank=True)

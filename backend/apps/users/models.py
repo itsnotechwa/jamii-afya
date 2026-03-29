@@ -25,3 +25,18 @@ class User(AbstractUser):
         return f"{self.get_full_name()} ({self.phone_number})"
 
 
+class OTPCode(models.Model):
+    """Short-lived one-time password for phone number verification."""
+
+    user       = models.ForeignKey(User, on_delete=models.CASCADE, related_name='otp_codes')
+    code       = models.CharField(max_length=6)
+    created_at = models.DateTimeField(auto_now_add=True)
+    is_used    = models.BooleanField(default=False)
+
+    class Meta:
+        db_table = 'otp_codes'
+        indexes  = [models.Index(fields=['user', 'is_used', 'created_at'])]
+
+    def __str__(self):
+        return f"OTP for {self.user.phone_number} ({'used' if self.is_used else 'active'})"
+

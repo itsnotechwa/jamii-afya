@@ -40,13 +40,13 @@ THIRD_PARTY_APPS = [
 ]
 
 LOCAL_APPS = [
-    'users',
-    'groups',
-    'contributions',
-    'emergencies',
-    'mpesa',
-    'notifications',
-    'audit',
+    'apps.users',
+    'apps.groups',
+    'apps.contributions',
+    'apps.emergencies',
+    'apps.mpesa',
+    'apps.notifications',
+    'apps.audit',
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
@@ -54,12 +54,14 @@ INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'utils.middleware.AuditLogMiddleware',
 ]
 
 ROOT_URLCONF = 'config.urls'
@@ -131,6 +133,7 @@ MPESA_ENVIRONMENT = config('MPESA_ENVIRONMENT', default='sandbox')
 MPESA_CONSUMER_KEY = config('MPESA_CONSUMER_KEY', default='')
 MPESA_CONSUMER_SECRET = config('MPESA_CONSUMER_SECRET', default='')
 MPESA_SHORTCODE = config('MPESA_SHORTCODE', default='174379')
+MPESA_BUY_GOODS_TILL = config('MPESA_BUY_GOODS_TILL', default='')
 MPESA_PASSKEY = config('MPESA_PASSKEY', default='')
 MPESA_CALLBACK_URL = config('MPESA_CALLBACK_URL', default='https://yourdomain.com/api/mpesa/callback/')
 MPESA_B2C_INITIATOR = config('MPESA_B2C_INITIATOR', default='')
@@ -138,10 +141,9 @@ MPESA_B2C_SECURITY_CREDENTIAL = config('MPESA_B2C_SECURITY_CREDENTIAL', default=
 MPESA_B2C_QUEUE_TIMEOUT_URL = config('MPESA_B2C_QUEUE_TIMEOUT_URL', default='https://yourdomain.com/api/mpesa/b2c/timeout/')
 MPESA_B2C_RESULT_URL = config('MPESA_B2C_RESULT_URL', default='https://yourdomain.com/api/mpesa/b2c/result/')
 
-# ── Africa's Talking SMS ───────────────────────────────────────────────────────
-AT_USERNAME  = config('AT_USERNAME',  default='sandbox')
-AT_API_KEY   = config('AT_API_KEY',   default='')
-AT_SENDER_ID = config('AT_SENDER_ID', default='')   # e.g. 'JamiiFund' (must be registered)
+# ── CommsGrid SMS ─────────────────────────────────────────────────────────────
+COMMSGRID_API_KEY   = config('COMMSGRID_API_KEY',   default='')
+COMMSGRID_SENDER_ID = config('COMMSGRID_SENDER_ID', default='JamiiFund')
 
 # ── Celery ─────────────────────────────────────────────────────────────────────
 CELERY_BROKER_URL = config('REDIS_URL', default='redis://localhost:6379/0')
@@ -195,6 +197,48 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 SPECTACULAR_SETTINGS = {
     'TITLE': 'JamiiFund API',
-    'DESCRIPTION': 'Community Emergency Medical Fund powered by M-Pesa',
+    'DESCRIPTION': (
+        'REST API for **JamiiFund** — a community emergency medical fund platform '
+        'for Kenyan chamas/welfare groups, powered by Safaricom M-Pesa.\n\n'
+        '## Authentication\n'
+        'All protected endpoints require a **Bearer JWT** token in the `Authorization` header.\n'
+        '```\nAuthorization: Bearer <access_token>\n```\n'
+        'Obtain tokens from `POST /api/auth/login/`.  '
+        'Refresh with `POST /api/auth/refresh/`.'
+    ),
     'VERSION': '1.0.0',
+    'CONTACT': {'name': 'JamiiFund Team'},
+    'LICENSE': {'name': 'Proprietary'},
+    'SERVERS': [
+        {'url': 'http://127.0.0.1:8000', 'description': 'Local development'},
+    ],
+    # JWT auth — adds the Authorize 🔒 button in Swagger UI
+    'SECURITY': [{'BearerAuth': []}],
+    'COMPONENTS': {
+        'securitySchemes': {
+            'BearerAuth': {
+                'type': 'http',
+                'scheme': 'bearer',
+                'bearerFormat': 'JWT',
+            }
+        }
+    },
+    # Group endpoints by URL prefix tag
+    'SORT_OPERATIONS': False,
+    'TAGS': [
+        {'name': 'Auth',          'description': 'Registration, login, JWT refresh, OTP verification'},
+        {'name': 'Groups',        'description': 'Chama/welfare group management'},
+        {'name': 'Contributions', 'description': 'Monthly contribution payments via M-Pesa STK Push'},
+        {'name': 'Emergencies',   'description': 'Emergency requests, admin voting, disbursement'},
+        {'name': 'M-Pesa',        'description': 'Safaricom Daraja API webhook callbacks (internal use)'},
+        {'name': 'Notifications', 'description': 'In-app notification inbox'},
+        {'name': 'Audit',         'description': 'Audit log trail (admin only)'},
+    ],
+    'SWAGGER_UI_SETTINGS': {
+        'deepLinking': True,
+        'persistAuthorization': True,
+        'displayRequestDuration': True,
+        'filter': True,
+    },
+    'SERVE_INCLUDE_SCHEMA': False,
 }

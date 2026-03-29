@@ -32,10 +32,6 @@ class EmergencyRequestSerializer(serializers.ModelSerializer):
         read_only_fields = ['claimant', 'status', 'amount_approved',
                             'rejection_reason', 'mpesa_ref', 'resolved_at']
 
-    def create(self, validated_data):
-        validated_data['claimant'] = self.context['request'].user
-        return super().create(validated_data)
-
 
 class VoteSerializer(serializers.Serializer):
     decision = serializers.ChoiceField(choices=['approve', 'reject'])

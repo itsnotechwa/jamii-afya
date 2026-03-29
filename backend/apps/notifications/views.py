@@ -1,6 +1,7 @@
 from rest_framework import generics, status
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
+from drf_spectacular.utils import extend_schema
 from rest_framework.response import Response
 from rest_framework.viewsets import ReadOnlyModelViewSet
 from rest_framework.serializers import ModelSerializer
@@ -15,9 +16,11 @@ class NotificationSerializer(ModelSerializer):
         fields = ['id', 'event_type', 'title', 'body', 'is_read', 'reference_id', 'created_at']
 
 
+@extend_schema(tags=['Notifications'])
 class NotificationViewSet(ReadOnlyModelViewSet):
     serializer_class   = NotificationSerializer
     permission_classes = [IsAuthenticated]
+    queryset           = Notification.objects.none()  # required for schema introspection
 
     def get_queryset(self):
         return Notification.objects.filter(

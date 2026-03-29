@@ -38,7 +38,7 @@ class Notification(models.Model):
 
 class SMSLog(models.Model):
     """
-    Immutable record of every outbound SMS via Africa's Talking.
+    Immutable record of every outbound SMS via CommsGrid.
     Used for audit, retry logic, and cost tracking.
     """
     class Status(models.TextChoices):
@@ -54,10 +54,9 @@ class SMSLog(models.Model):
     message         = models.TextField()
     status          = models.CharField(max_length=10, choices=Status.choices,
                                        default=Status.PENDING)
-    at_message_id   = models.CharField(max_length=100, blank=True)
-    at_cost         = models.CharField(max_length=20, blank=True)
-    at_status_code  = models.CharField(max_length=10, blank=True)
-    raw_response    = models.JSONField(default=dict)
+    provider_message_id = models.CharField(max_length=100, blank=True)
+    provider_status     = models.CharField(max_length=50, blank=True)
+    raw_response        = models.JSONField(default=dict)
     sent_at         = models.DateTimeField(auto_now_add=True)
 
     class Meta:

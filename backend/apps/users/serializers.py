@@ -29,16 +29,38 @@ class RegisterSerializer(serializers.ModelSerializer):
 
 
 class LoginSerializer(serializers.Serializer):
-    phone_number = serializers.CharField()
-    password     = serializers.CharField(write_only=True)
+    """
+    Accept login via phone_number OR email, per the PDF spec.
+    Tries phone first; falls back to email lookup if the identifier contains '@'.
+    """
+    identifier = serializers.CharField(
+        help_text='Phone number (+254...) or email address'
+    )
+    password   = serializers.CharField(write_only=True)
 
     def validate(self, data):
-        user = authenticate(username=data['phone_number'], password=data['password'])
+        identifier = data['identifier'].strip()
+        password   = data['password']
+
+        user = None
+
+        if '@' in identifier:
+            # Email path: look up user by email then authenticate by phone (USERNAME_FIELD)
+            try:
+                u = User.objects.get(email__iexact=identifier)
+                user = authenticate(username=str(u.phone_number), password=password)
+            except User.DoesNotExist:
+                pass
+        else:
+            # Phone path
+            user = authenticate(username=identifier, password=password)
+
         if not user:
             raise serializers.ValidationError("Invalid credentials.")
+
         tokens = RefreshToken.for_user(user)
         return {
-            'user': UserProfileSerializer(user).data,
+            'user':    UserProfileSerializer(user).data,
             'access':  str(tokens.access_token),
             'refresh': str(tokens),
         }
