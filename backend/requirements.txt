@@ -31,7 +31,7 @@ kombu==5.6.2
 mysqlclient==2.2.1
 packaging==26.0
 phonenumbers==8.13.27
-pillow==10.2.0
+pillow==12.1.1
 prompt_toolkit==3.0.52
 PyJWT==2.12.1
 PyMySQL==1.1.2
