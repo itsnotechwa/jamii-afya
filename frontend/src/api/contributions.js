@@ -2,7 +2,12 @@ import api from './axios';
 
 // Trigger M-Pesa STK push for a contribution
 export const initiateContributionPush = (amount, phone) =>
-  api.post('/api/contributions/stk-push/', { amount, phone }).then(r => r.data);
+  api.post('/api/contributions/initiate/', { 
+    group_id: 1, 
+    amount, 
+    phone, 
+    period: new Date().toISOString().slice(0,7),
+  }).then(r => r.data);
 
 // Poll for STK result — same pattern as old donations
 export const getContributionStkStatus = (checkoutRequestId) =>

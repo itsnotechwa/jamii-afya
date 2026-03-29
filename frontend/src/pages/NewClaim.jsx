@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useClaims } from "../hooks/useClaims";
-import { submitClaim } from "../api/claims";
+import { submitClaim } from "../api/emergencies";
 import { getHospitals } from "../api/hospitals";
 import { useSnack } from "../context/SnackContext";
 import Spinner from "../components/LoadingSpinner";

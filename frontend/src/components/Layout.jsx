@@ -3,6 +3,9 @@ import { useState, useCallback, useEffect } from "react";
 import { getSchedule, getMyContributions } from "../api/contributions";
 import ContributeModal from "./ModalContribute";
 import { fmt } from "../helpers";
+import Navbar from './NavBar';
+import Snackbar from './SnackBar';
+import { SnackContext } from '../context/SnackContext';
 
 export default function Layout({ children }) {
   const [snack,    setSnack]    = useState({ msg: "", type: "" });

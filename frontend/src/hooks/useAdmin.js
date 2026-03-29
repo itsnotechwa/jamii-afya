@@ -6,7 +6,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "./useAuth";
-import { getClaims, approveClaim, rejectClaim } from "../api/claims";
+import { getClaims, approveClaim, rejectClaim } from "../api/emergencies";
 
 export function useAdmin() {
   const { token } = useAuth();

@@ -5,7 +5,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "./useAuth";
-import { getClaims, getClaim } from "../api/claims";
+import { getClaims, getClaim } from "../api/emergencies";
 
 // ── Claims list ───────────────────────────────────────────────────────────────
 export function useClaims() {
