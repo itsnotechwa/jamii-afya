@@ -183,7 +183,7 @@ export default function HomePage() {
                 <button
                   className="btn btn-outline btn-sm"
                   onClick={() => {
-                    navigate('/claims/${claim.id}');
+                    navigate(`/claims/${claim.id}`);
                   }}
                 >
                   View Details
