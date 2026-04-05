@@ -29,7 +29,7 @@ class OTPCode(models.Model):
     """Short-lived one-time password for phone number verification."""
 
     user       = models.ForeignKey(User, on_delete=models.CASCADE, related_name='otp_codes')
-    code       = models.CharField(max_length=6)
+    code       = models.CharField(max_length=255, help_text='Hashed OTP (never store plaintext).')
     created_at = models.DateTimeField(auto_now_add=True)
     is_used    = models.BooleanField(default=False)
 

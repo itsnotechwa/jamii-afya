@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { useClaims } from "../hooks/useClaims";
 import { submitClaim } from "../api/emergencies";
 import { getHospitals } from "../api/hospitals";
+import api from "../api/axios";
 import { useSnack } from "../context/SnackContext";
 import Spinner from "../components/LoadingSpinner";
 
@@ -17,11 +18,57 @@ export default function NewClaimPage() {
   const [drag,       setDrag]       = useState(false);
   const [errors,     setErrors]     = useState({});
   const [submitting, setSubmitting] = useState(false);
-  const [hospitals,  setHospitals]  = useState([]);
+  const [hospitals,    setHospitals]    = useState([]);
+  const [groupId,      setGroupId]      = useState(null);
+  const [payoutPhone,  setPayoutPhone]  = useState("");
 
   useEffect(() => {
     getHospitals().then(setHospitals).catch(() => {});
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const profile = await api.get("/api/auth/profile/");
+        if (cancelled) return;
+        const p = profile.data?.phone_number;
+        setPayoutPhone(typeof p === "string" ? p : p != null ? String(p) : "");
+      } catch {
+        if (!cancelled) {
+          showSnack(
+            "Could not load your profile (phone for payout). Check your connection or sign in again.",
+            "error",
+          );
+        }
+      }
+      try {
+        const groups = await api.get("/api/groups/");
+        if (cancelled) return;
+        const raw = Array.isArray(groups.data)
+          ? groups.data
+          : groups.data?.results ?? [];
+        if (raw.length) {
+          setGroupId(raw[0].id);
+        } else {
+          showSnack(
+            "You are not in any group yet. Join a group before submitting a claim.",
+            "warning",
+          );
+        }
+      } catch {
+        if (!cancelled) {
+          showSnack(
+            "Could not load your groups. Check your connection — you need an active group to submit a claim.",
+            "error",
+          );
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [showSnack]);
 
   const validate = () => {
     const e = {};
@@ -29,6 +76,8 @@ export default function NewClaimPage() {
     if (!form.amount || isNaN(form.amount) || Number(form.amount) < 1000)
       e.amount = "Enter a valid amount (min KES 1,000)";
     if (!file) e.file = "Attach a hospital bill";
+    if (!groupId) e.group = "You need an active group — join a group first.";
+    if (!payoutPhone?.trim()) e.phone = "Could not load your phone for M-Pesa payout. Update your profile.";
     return e;
   };
 
@@ -41,9 +90,11 @@ export default function NewClaimPage() {
 
     try {
       await submitClaim({
+        group: groupId,
         hospital: form.hospital,
-        amount:   Number(form.amount),
-        desc:     form.desc,
+        amount: Number(form.amount),
+        desc: form.desc,
+        payout_phone: payoutPhone.replace(/\s/g, ""),
         file,
       });
 
@@ -178,6 +229,12 @@ export default function NewClaimPage() {
                 <span className="field-error" role="alert">{errors.file}</span>
               )}
             </div>
+
+            {(errors.group || errors.phone) && (
+              <span className="field-error" role="alert" style={{ display: "block" }}>
+                {errors.group || errors.phone}
+              </span>
+            )}
 
             {/* Submit */}
             <button

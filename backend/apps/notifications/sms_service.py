@@ -1,6 +1,6 @@
 """
 CommsGrid SMS Service
-Handles all outbound SMS for JamiiFund events.
+Handles all outbound SMS for Jamii Afya events.
 Docs: https://sms.paygrid.co.ke
 """
 import logging
@@ -10,6 +10,13 @@ from django.conf import settings
 logger = logging.getLogger(__name__)
 
 COMMSGRID_API_URL = "https://sms.paygrid.co.ke/api/sms/send"
+
+
+def _mask_phone(phone: str) -> str:
+    p = str(phone).strip().replace(' ', '')
+    if len(p) <= 4:
+        return '****'
+    return f'{p[:3]}…{p[-2:]}'
 
 
 class CommsGridSmsService:
@@ -55,13 +62,21 @@ class CommsGridSmsService:
             )
             resp.raise_for_status()
             data = resp.json()
-            logger.info(f"CommsGrid SMS sent to {phone}: {data}")
+            logger.info('CommsGrid SMS sent to %s, status=%s', _mask_phone(phone), resp.status_code)
             return data
         except requests.exceptions.HTTPError as exc:
-            logger.error(f"CommsGrid SMS HTTP error to {phone}: {exc} — {exc.response.text}")
-            return {"error": str(exc), "detail": exc.response.text}
+            body = ''
+            if exc.response is not None:
+                body = (exc.response.text or '')[:500]
+            logger.error(
+                'CommsGrid SMS HTTP error to %s: %s body=%s',
+                _mask_phone(phone),
+                exc,
+                body,
+            )
+            return {"error": str(exc), "detail": exc.response.text if exc.response else ''}
         except Exception as exc:
-            logger.error(f"CommsGrid SMS FAILED to {phone}: {exc}")
+            logger.error('CommsGrid SMS FAILED to %s: %s', _mask_phone(phone), exc)
             return {'error': str(exc)}
 
     @classmethod
@@ -87,7 +102,7 @@ class SMSTemplates:
     def emergency_raised_admin(claimant_name: str, emergency_type: str,
                                amount: float, group_name: str) -> str:
         return (
-            f"[JamiiFund] URGENT: {claimant_name} in {group_name} needs "
+            f"[Jamii Afya] URGENT: {claimant_name} in {group_name} needs "
             f"KES {amount:,.0f} for {emergency_type}. "
             f"Log in to review and vote: jamii.fund/emergencies"
         )
@@ -95,21 +110,21 @@ class SMSTemplates:
     @staticmethod
     def emergency_approved_claimant(amount: float, group_name: str) -> str:
         return (
-            f"[JamiiFund] Good news! Your emergency request in {group_name} "
+            f"[Jamii Afya] Good news! Your emergency request in {group_name} "
             f"has been approved. KES {amount:,.0f} will be sent to your M-Pesa shortly."
         )
 
     @staticmethod
     def payout_success(amount: float, mpesa_receipt: str) -> str:
         return (
-            f"[JamiiFund] KES {amount:,.0f} sent to your M-Pesa. "
+            f"[Jamii Afya] KES {amount:,.0f} sent to your M-Pesa. "
             f"Receipt: {mpesa_receipt}. Wishing you a quick recovery."
         )
 
     @staticmethod
     def payout_failed(group_name: str) -> str:
         return (
-            f"[JamiiFund] We could not complete your payout from {group_name}. "
+            f"[Jamii Afya] We could not complete your payout from {group_name}. "
             f"Please contact your group admin. We apologise for the inconvenience."
         )
 
@@ -117,7 +132,7 @@ class SMSTemplates:
     def contribution_confirmed(amount: float, period: str, group_name: str,
                                mpesa_receipt: str) -> str:
         return (
-            f"[JamiiFund] Contribution confirmed: KES {amount:,.0f} "
+            f"[Jamii Afya] Contribution confirmed: KES {amount:,.0f} "
             f"for {period} in {group_name}. Receipt: {mpesa_receipt}. Asante!"
         )
 
@@ -125,7 +140,7 @@ class SMSTemplates:
     def contribution_reminder(member_name: str, amount: float,
                               group_name: str, period: str) -> str:
         return (
-            f"[JamiiFund] Hi {member_name}, your KES {amount:,.0f} "
+            f"[Jamii Afya] Hi {member_name}, your KES {amount:,.0f} "
             f"contribution for {period} in {group_name} is due. "
             f"Pay via M-Pesa to stay eligible for emergency support."
         )
@@ -133,13 +148,13 @@ class SMSTemplates:
     @staticmethod
     def vote_cast(emergency_id: int, decision: str, remaining: int) -> str:
         return (
-            f"[JamiiFund] Vote recorded: {decision.upper()} on emergency #{emergency_id}. "
+            f"[Jamii Afya] Vote recorded: {decision.upper()} on emergency #{emergency_id}. "
             f"{remaining} more vote(s) needed to reach threshold."
         )
 
     @staticmethod
     def emergency_rejected(group_name: str, reason: str) -> str:
         return (
-            f"[JamiiFund] Your emergency request in {group_name} was not approved. "
+            f"[Jamii Afya] Your emergency request in {group_name} was not approved. "
             f"Reason: {reason[:80]}. Contact your admin for more info."
         )

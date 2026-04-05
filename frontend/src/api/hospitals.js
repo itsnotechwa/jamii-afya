@@ -7,13 +7,21 @@
 
 import api from './axios';
 
+function hospitalsFromResponse(data) {
+  if (Array.isArray(data)) return data;
+  if (data && Array.isArray(data.results)) return data.results;
+  return [];
+}
+
 /**
  * @returns {Promise<{ id: number, name: string, location: string }[]>}
  */
 export async function getHospitals() {
   try {
-    const { data } = await api.get('/api/hospitals/');
-    return data;
+    const { data } = await api.get('/api/hospitals/', {
+      params: { page_size: 100 },
+    });
+    return hospitalsFromResponse(data);
   } catch(error) {
     // Log the error for debugging purposes
     console.warn('Failed to fetch hospitals from API, using fallback list:', error.message);

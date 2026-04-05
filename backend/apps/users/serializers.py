@@ -1,6 +1,14 @@
+from django.contrib.auth import authenticate
 from rest_framework import serializers
 from rest_framework_simplejwt.tokens import RefreshToken
-from django.contrib.auth import authenticate
+
+from utils.request import get_client_ip
+
+from .auth_limits import (
+    assert_login_allowed,
+    clear_login_failures,
+    record_login_failure,
+)
 from .models import User
 
 
@@ -41,6 +49,10 @@ class LoginSerializer(serializers.Serializer):
     def validate(self, data):
         identifier = data['identifier'].strip()
         password   = data['password']
+        request = self.context.get('request')
+        ip = get_client_ip(request) if request else ''
+
+        assert_login_allowed(identifier, ip)
 
         user = None
 
@@ -56,7 +68,10 @@ class LoginSerializer(serializers.Serializer):
             user = authenticate(username=identifier, password=password)
 
         if not user:
+            record_login_failure(identifier, ip)
             raise serializers.ValidationError("Invalid credentials.")
+
+        clear_login_failures(identifier, ip)
 
         tokens = RefreshToken.for_user(user)
         return {
@@ -70,5 +85,5 @@ class UserProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model  = User
         fields = ['id', 'first_name', 'last_name', 'phone_number',
-                  'national_id', 'email', 'is_verified', 'profile_pic']
-        read_only_fields = ['is_verified']
+                  'national_id', 'email', 'is_verified', 'profile_pic', 'is_staff']
+        read_only_fields = ['is_verified', 'is_staff']

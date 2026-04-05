@@ -1,14 +1,20 @@
+import logging
+from datetime import timedelta
+
 from rest_framework import serializers, viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from drf_spectacular.utils import extend_schema, inline_serializer
 import rest_framework.fields as f
+from django.conf import settings as dj_settings
 from django.db.models import Sum, Count
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
 from .models import Contribution
-from apps.groups.models import Group
+from apps.groups.models import Group, GroupMember
 
+logger = logging.getLogger(__name__)
 
 class ContributionSerializer(serializers.ModelSerializer):
     member_name = serializers.CharField(source='member.get_full_name', read_only=True)
@@ -114,7 +120,7 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
             phone=str(request.user.phone_number),
             amount=amount,
             account_ref=f"GRP{group.id}",
-            description="JamiiFund Contribution",
+            description="Jamii Afya Contribution",
             tx_type=tx_type,
             shortcode_override=shortcode,
         )
@@ -141,6 +147,20 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
     def summary(self, request):
         """Group-level pool summary for dashboard."""
         group_id = request.query_params.get('group_id')
+        if not group_id:
+            return Response(
+                {'detail': 'group_id is required.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        group = get_object_or_404(Group, id=group_id)
+        is_member = GroupMember.objects.filter(
+            group=group, user=request.user, status='active'
+        ).exists()
+        if not is_member:
+            return Response(
+                {'detail': 'You are not a member of this group.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
         qs = Contribution.objects.filter(group_id=group_id, status='confirmed')
         data = qs.aggregate(total=Sum('amount'), count=Count('id'))
         return Response(data)
@@ -165,7 +185,6 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
         group = get_object_or_404(Group, id=group_id)
 
         # Only group admins may trigger reminders
-        from apps.groups.models import GroupMember
         is_admin = GroupMember.objects.filter(
             group=group, user=request.user, role='admin', status='active'
         ).exists()
@@ -178,6 +197,35 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
         amount = float(group.contribution_amount or 0)
         send_contribution_reminders.delay(group_id=group.id, period=period, amount=amount)
         return Response({'detail': 'Contribution reminders queued successfully.'})
+
+    @action(detail=False, methods=['post'], url_path='reprompt')
+    def reprompt(self, request):
+        """Alias for send_reminder (admin-only; requires group_id and period in body)."""
+        return self.send_reminder(request)
+
+    @action(detail=False, methods=['get'], url_path='schedule')
+    def schedule(self, request):
+        """Next contribution context for the user's primary active group (first by joined_at)."""
+        gm = GroupMember.objects.filter(
+            user=request.user, status='active'
+        ).select_related('group').order_by('joined_at').first()
+        if not gm:
+            return Response(
+                {'detail': 'No active group membership.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        g = gm.group
+        period = (request.query_params.get('period') or timezone.now().strftime('%Y-%m'))[:10]
+        next_due = (timezone.now() + timedelta(days=7)).date().isoformat()
+        paybill = (g.paybill_number or '').strip() or str(getattr(dj_settings, 'MPESA_SHORTCODE', '') or '')
+        return Response({
+            'group_id':   g.id,
+            'group_name': g.name,
+            'amount':     float(g.contribution_amount or 0),
+            'period':     period,
+            'next_due':   next_due,
+            'paybill':    paybill,
+        })
 
     # ── Re-send STK push (after failure / user cancellation) ──────────────────
 
@@ -274,7 +322,7 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
             phone=str(request.user.phone_number),
             amount=contribution.amount,
             account_ref=f"GRP{group.id}",
-            description="JamiiFund Contribution (retry)",
+            description="Jamii Afya Contribution (retry)",
             tx_type=tx_type,
             shortcode_override=shortcode,
         )
@@ -365,7 +413,6 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
         """Query Safaricom STK Push Query API and sync status to DB."""
         from apps.mpesa.services import MpesaService
         from apps.mpesa.models import MpesaTransaction
-        from django.utils import timezone
 
         checkout_id = request.data.get('checkout_request_id', '').strip()
         if not checkout_id:
@@ -403,8 +450,9 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
         try:
             daraja = MpesaService.stk_query(checkout_id)
         except Exception as exc:
+            logger.exception('Safaricom STK query failed for checkout_id=%s', checkout_id)
             return Response(
-                {'detail': f'Safaricom query failed: {exc}'},
+                {'detail': 'Unable to reach Safaricom to confirm payment status. Please try again shortly.'},
                 status=status.HTTP_502_BAD_GATEWAY,
             )
 

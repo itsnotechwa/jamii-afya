@@ -54,7 +54,7 @@ def notify_admins_new_emergency(emergency_id: int):
             title = 'New Emergency Request — Vote Required'
         else:
             sms = (
-                f"[JamiiFund] {emergency.claimant.get_full_name()} in "
+                f"[Jamii Afya] {emergency.claimant.get_full_name()} in "
                 f"{emergency.group.name} has raised a {emergency.emergency_type} "
                 f"emergency requesting KES {emergency.amount_requested:,.0f}. "
                 f"Check the app for details."

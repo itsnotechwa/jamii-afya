@@ -1,6 +1,8 @@
 import json
 import logging
 
+from utils.request import get_client_ip
+
 logger = logging.getLogger(__name__)
 
 WRITE_METHODS = {'POST', 'PUT', 'PATCH', 'DELETE'}
@@ -52,16 +54,9 @@ class AuditLogMiddleware:
                 endpoint=request.path,
                 payload=payload,
                 response_code=response.status_code,
-                ip_address=self._get_ip(request),
+                ip_address=get_client_ip(request),
             )
         except Exception as e:
             logger.error(f"AuditLog write failed: {e}")
 
         return response
-
-    @staticmethod
-    def _get_ip(request):
-        x_forwarded = request.META.get('HTTP_X_FORWARDED_FOR')
-        if x_forwarded:
-            return x_forwarded.split(',')[0].strip()
-        return request.META.get('REMOTE_ADDR')

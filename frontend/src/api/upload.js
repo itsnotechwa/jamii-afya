@@ -12,6 +12,8 @@ import api from './axios';
 
 /**
  * Request a presigned upload URL from the back-end.
+ * The API currently returns HTTP 501 until S3 (or similar) is configured;
+ * prefer attaching files via the emergency claim flow instead.
  * @param {string} fileName   e.g. "hospital_bill_2024.pdf"
  * @returns {Promise<{ url: string, fields?: Record<string,string> }>}
  */

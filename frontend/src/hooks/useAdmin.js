@@ -22,7 +22,7 @@ export function useAdmin() {
     setLoading(true);
     setError(null);
     try {
-      const all = await getClaims(token);
+      const all = await getClaims();
       setPending(all.filter((c) => c.status === "pending"));
     } catch (err) {
       setError(err.message);
@@ -37,7 +37,7 @@ export function useAdmin() {
   const approve = useCallback(async (claim) => {
     setActionId(claim.id);
     try {
-      await approveClaim(claim.id, token);
+      await approveClaim(claim.id);
       // Optimistic remove — don't wait for a refetch
       setPending((prev) => prev.filter((c) => c.id !== claim.id));
     } catch (err) {
@@ -52,7 +52,7 @@ export function useAdmin() {
   const reject = useCallback(async (claim, reason = "") => {
     setActionId(claim.id);
     try {
-      await rejectClaim(claim.id, reason, token);
+      await rejectClaim(claim.id, reason);
       setPending((prev) => prev.filter((c) => c.id !== claim.id));
     } catch (err) {
       setError(err.message);

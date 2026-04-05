@@ -18,7 +18,7 @@ export function useClaims() {
     setLoading(true);
     setError(null);
     try {
-      const data = await getClaims(token);
+      const data = await getClaims();
       setClaims(data);
     } catch (err) {
       setError(err.message);
@@ -44,7 +44,7 @@ export function useClaimDetail(claimId) {
     setLoading(true);
     setError(null);
     try {
-      const data = await getClaim(claimId, token);
+      const data = await getClaim(claimId);
       setClaim(data);
     } catch (err) {
       setError(err.message);

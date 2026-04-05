@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import EmergencyRequest, EmergencyDocument, EmergencyApproval
+from .models import EmergencyRequest, EmergencyDocument, EmergencyApproval, Hospital
 
 
 class EmergencyDocumentSerializer(serializers.ModelSerializer):
@@ -21,7 +21,7 @@ class EmergencyRequestSerializer(serializers.ModelSerializer):
     documents    = EmergencyDocumentSerializer(many=True, read_only=True)
     approvals    = EmergencyApprovalSerializer(many=True, read_only=True)
     claimant_name = serializers.CharField(source='claimant.get_full_name', read_only=True)
-    approval_count = serializers.IntegerField(read_only=True)
+    approval_count = serializers.SerializerMethodField()
 
     class Meta:
         model  = EmergencyRequest
@@ -32,7 +32,22 @@ class EmergencyRequestSerializer(serializers.ModelSerializer):
         read_only_fields = ['claimant', 'status', 'amount_approved',
                             'rejection_reason', 'mpesa_ref', 'resolved_at']
 
+    def get_approval_count(self, obj):
+        # Prefer SQL annotation from EmergencyRequestViewSet.get_queryset when present.
+        _missing = object()
+        annotated = getattr(obj, 'approval_count', _missing)
+        if annotated is not _missing:
+            return annotated
+        # Always count from DB so prefetched `approvals` can never serve stale data.
+        return EmergencyApproval.objects.filter(emergency=obj, decision='approve').count()
+
 
 class VoteSerializer(serializers.Serializer):
     decision = serializers.ChoiceField(choices=['approve', 'reject'])
     note     = serializers.CharField(required=False, allow_blank=True)
+
+
+class HospitalSerializer(serializers.ModelSerializer):
+    class Meta:
+        model  = Hospital
+        fields = ['id', 'name', 'location']

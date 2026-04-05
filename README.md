@@ -65,6 +65,8 @@ Key Features (Screenshots)
 
 ### Test Accounts (Multi-role)
 
+**Local dev:** after `migrate`, run `python manage.py seed_demo` in `backend/` to create these users in your database (see `backend/README.md`).
+
 Use the following accounts to test role-based flows:
 
 | Role | Phone / Username | Password | Notes |

@@ -44,13 +44,13 @@ class EmergencyRequest(models.Model):
     def __str__(self):
         return f"{self.claimant} | {self.emergency_type} | KES {self.amount_requested} [{self.status}]"
 
-    @property
-    def approval_count(self):
+    def approve_vote_count(self):
+        """DB count of approve votes (use serializer/API approval_count when SQL-annotated)."""
         return self.approvals.filter(decision='approve').count()
 
     @property
     def is_auto_approvable(self):
-        return self.approval_count >= self.group.approval_threshold
+        return self.approve_vote_count() >= self.group.approval_threshold
 
 
 class EmergencyDocument(models.Model):

@@ -1,4 +1,4 @@
-from rest_framework import viewsets, status
+from rest_framework import generics, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from drf_spectacular.utils import extend_schema
@@ -6,9 +6,13 @@ from rest_framework.response import Response
 from django.utils import timezone
 from django.db import transaction
 from django.db.models import Count, Q
-from .models import EmergencyRequest, EmergencyApproval, EmergencyDocument
-from .serializers import EmergencyRequestSerializer, VoteSerializer, EmergencyDocumentSerializer
-from utils.permissions import IsGroupAdmin
+from .models import EmergencyApproval, EmergencyDocument, EmergencyRequest, Hospital
+from .serializers import (
+    EmergencyDocumentSerializer,
+    EmergencyRequestSerializer,
+    HospitalSerializer,
+    VoteSerializer,
+)
 from utils.eligibility import check_eligibility
 
 
@@ -75,9 +79,16 @@ class EmergencyRequestViewSet(viewsets.ModelViewSet):
                 note=note,
             )
 
-            approval_count = emergency.approvals.filter(decision='approve').count()
-            reject_count   = emergency.approvals.filter(decision='reject').count()
+            # Count from DB so prefetch_related('approvals') cannot mask the new vote.
+            approval_count = EmergencyApproval.objects.filter(
+                emergency=emergency, decision='approve'
+            ).count()
+            reject_count = EmergencyApproval.objects.filter(
+                emergency=emergency, decision='reject'
+            ).count()
 
+            # Rejection requires the same number of reject votes as admin approvals would
+            # (consensus to decline); adjust product rules here if you want "any reject wins".
             if decision == 'reject' and reject_count >= emergency.group.approval_threshold:
                 emergency.status           = 'rejected'
                 emergency.rejection_reason = note or 'Rejected by admins.'
@@ -108,6 +119,7 @@ class EmergencyRequestViewSet(viewsets.ModelViewSet):
             from apps.notifications.tasks import notify_vote_cast
             notify_vote_cast.delay(emergency.id, request.user.id, decision)
 
+        emergency = self.get_queryset().get(pk=emergency.pk)
         return Response(EmergencyRequestSerializer(emergency).data)
 
     @action(detail=True, methods=['post'])
@@ -124,3 +136,12 @@ class EmergencyRequestViewSet(viewsets.ModelViewSet):
         """Shortcut: all pending requests in my groups (for admin dashboard)."""
         qs = self.get_queryset().filter(status='pending')
         return Response(EmergencyRequestSerializer(qs, many=True).data)
+
+
+@extend_schema(tags=['Hospitals'])
+class HospitalListView(generics.ListAPIView):
+    """Reference hospitals for claim forms (directory is optional; may be empty)."""
+
+    permission_classes = [IsAuthenticated]
+    serializer_class   = HospitalSerializer
+    queryset           = Hospital.objects.all().order_by('name')

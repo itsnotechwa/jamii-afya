@@ -1,4 +1,4 @@
-# JamiiFund Backend API
+# Jamii Afya Backend API
 
 Community emergency medical fund platform for Kenyan chamas/welfare groups, powered by Safaricom M-Pesa and CommsGrid SMS.
 
@@ -88,7 +88,21 @@ EXIT;
 python3 manage.py migrate
 ```
 
-### 7. Create a superuser (admin)
+### 7. Optional — demo seed data
+
+Loads the demo users from the project README (`+254700000000` admin, `+254712345678` member, password `123456`), a group (`JAMIIDEMO01`), a confirmed contribution for the current month, one pending emergency, and a sample hospital. Safe to run repeatedly.
+
+```bash
+python3 manage.py seed_demo
+```
+
+Use `--reset-passwords` to set demo accounts back to `123456` if they already exist.
+
+Automated tests use a separate database and are **not** affected by this command.
+
+### 8. Create a superuser (admin)
+
+If you did **not** run `seed_demo`, create an admin user manually:
 
 ```bash
 python3 manage.py createsuperuser
@@ -96,7 +110,7 @@ python3 manage.py createsuperuser
 
 You will be prompted for a phone number, email, and password.
 
-### 8. Start the development server
+### 9. Start the development server
 
 ```bash
 python3 manage.py runserver
