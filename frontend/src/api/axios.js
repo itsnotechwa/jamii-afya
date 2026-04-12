@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { clearAuthStorage } from './authStorage';
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || 'http://localhost:8000',
@@ -16,21 +17,35 @@ api.interceptors.request.use(
   (error) => Promise.reject(error),
 );
 
+/** Flatten Django REST Framework validation payloads (detail, non_field_errors, field errors). */
+function drfErrorMessage(data) {
+  if (data == null || typeof data !== 'object') return null;
+  const { detail, message, non_field_errors: nfe } = data;
+  if (typeof detail === 'string' && detail.trim()) return detail;
+  if (Array.isArray(detail) && detail.length) return detail.map(String).join(' ');
+  if (typeof message === 'string' && message.trim()) return message;
+  if (Array.isArray(nfe) && nfe.length) return nfe.map(String).join(' ');
+  for (const key of Object.keys(data)) {
+    if (key === 'detail' || key === 'message') continue;
+    const v = data[key];
+    if (Array.isArray(v) && v.length) return `${key}: ${v.map(String).join(' ')}`;
+    if (typeof v === 'string' && v.trim()) return `${key}: ${v}`;
+  }
+  return null;
+}
+
 // ── Response interceptor: normalise errors ───────────────────────────────────
 api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      // Token expired or invalid – clear storage and redirect to login
-      localStorage.removeItem('token');
-      localStorage.removeItem('role');
-      localStorage.removeItem('userId');
+      clearAuthStorage();
+      // Full navigation remounts the app; AuthContext re-initializes from cleared storage.
       window.location.href = '/login';
     }
-    // Normalise error message so every catch block can use error.message
+    const data = error.response?.data;
     const message =
-      error.response?.data?.detail ||
-      error.response?.data?.message ||
+      drfErrorMessage(data) ||
       error.message ||
       'An unexpected error occurred.';
     return Promise.reject(new Error(message));

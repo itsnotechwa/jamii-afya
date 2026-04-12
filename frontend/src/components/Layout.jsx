@@ -6,10 +6,12 @@ import { fmt } from "../helpers";
 import Navbar from './NavBar';
 import Snackbar from './SnackBar';
 import { SnackContext } from '../context/SnackContext';
+import { ContributionPayContext } from '../context/ContributionPayContext';
+import { needsContributionPayment } from '../utils/contributionPay';
 
 export default function Layout({ children }) {
   const [snack,    setSnack]    = useState({ msg: "", type: "" });
-  const [overdue,  setOverdue]  = useState(false);
+  const [showPayBanner, setShowPayBanner] = useState(false);
   const [schedule, setSchedule] = useState(null);
   const [showContribute, setShowContribute] = useState(false);
 
@@ -19,71 +21,72 @@ export default function Layout({ children }) {
   );
 
   useEffect(() => {
-    // Check if the current user has an unpaid contribution past the deadline
     Promise.all([getSchedule(), getMyContributions()])
       .then(([sched, contribs]) => {
         setSchedule(sched);
-        const hasOverdue = contribs.some(c => c.status === "overdue");
-        setOverdue(hasOverdue);
+        setShowPayBanner(needsContributionPayment(sched, contribs));
       })
-      .catch(() => {}); // silent — don't block the app if this fails
+      .catch(() => {}); // silent — no group / API error: hide banner
   }, []);
 
   return (
     <SnackContext.Provider value={showSnack}>
-      <div className="app-shell">
-        <Navbar />
+      <ContributionPayContext.Provider value={{ openPayModal: () => setShowContribute(true) }}>
+        <div className="app-shell">
+          <Navbar />
 
-        {/* Overdue contribution banner — persists until paid */}
-        {overdue && (
-          <div style={{
-            background: "var(--red)",
-            color: "#fff",
-            padding: "12px 24px",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: 16,
-            fontSize: "var(--text-sm)",
-            fontWeight: 600,
-          }}>
-            <span>
-              ⚠️ Your {schedule?.period} contribution of{" "}
-              {fmt(schedule?.amount)} is overdue.
-            </span>
-            <button
-              className="btn btn-xs"
-              style={{ background: "#fff", color: "var(--red)", fontWeight: 700 }}
-              onClick={() => setShowContribute(true)}
-            >
-              Pay Now
-            </button>
-          </div>
+          {/* Chama contribution — M-Pesa STK (opens ModalContribute) */}
+          {showPayBanner && (
+            <div style={{
+              background: "var(--red)",
+              color: "#fff",
+              padding: "12px 24px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 16,
+              fontSize: "var(--text-sm)",
+              fontWeight: 600,
+            }}>
+              <span>
+                ⚠️ Your {schedule?.period} contribution ({fmt(schedule?.amount)}) — pay with M-Pesa to stay current.
+              </span>
+              <button
+                className="btn btn-xs"
+                style={{ background: "#fff", color: "var(--red)", fontWeight: 700 }}
+                onClick={() => setShowContribute(true)}
+              >
+                Pay Now
+              </button>
+            </div>
+          )}
+
+          <main style={{ flex: 1 }}>
+            {children}
+          </main>
+        </div>
+
+        {showContribute && (
+          <ContributeModal
+            schedule={schedule}
+            onClose={() => {
+              setShowContribute(false);
+              Promise.all([getSchedule(), getMyContributions()])
+                .then(([sched, contribs]) => {
+                  setSchedule(sched);
+                  setShowPayBanner(needsContributionPayment(sched, contribs));
+                })
+                .catch(() => {});
+            }}
+          />
         )}
 
-        <main style={{ flex: 1 }}>
-          {children}
-        </main>
-      </div>
-
-      {showContribute && (
-        <ContributeModal
-          schedule={schedule}
-          onClose={() => {
-            setShowContribute(false);
-            // Re-check overdue status after payment
-            getMyContributions()
-              .then(contribs => setOverdue(contribs.some(c => c.status === "overdue")))
-              .catch(() => {});
-          }}
+        <Snackbar
+          msg={snack.msg}
+          type={snack.type}
+          onClose={() => setSnack({ msg: "", type: "" })}
         />
-      )}
-
-      <Snackbar
-        msg={snack.msg}
-        type={snack.type}
-        onClose={() => setSnack({ msg: "", type: "" })}
-      />
+      </ContributionPayContext.Provider>
     </SnackContext.Provider>
   );
 }

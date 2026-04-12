@@ -1,6 +1,5 @@
 /**
- * auth.js
- * Returns { token, role, id }; caller stores these in AuthContext.
+ * auth.js — login, register, profile, OTP verification.
  */
 
 import api from './axios';
@@ -24,18 +23,18 @@ async function loginViaApi(phone, password) {
     throw new Error(data.detail || 'Login did not return user information.');
   }
   const role = user.is_staff ? 'admin' : 'member';
+  const id = Number(user.id);
+  const isVerified = Boolean(user.is_verified);
   localStorage.setItem('token', token);
   localStorage.setItem('role', role);
-  const id = Number(user.id);
   localStorage.setItem('userId', String(id));
-  return { token, role, id };
+  localStorage.setItem('isVerified', isVerified ? '1' : '0');
+  return { token, role, id, isVerified };
 }
 
 /**
  * Login and retrieve JWT + role.
- * @param {string} phone  E.164 e.g. "+254712345678" (sent as `identifier` to the API)
- * @param {string} password
- * @returns {Promise<{ token: string, role: 'member'|'admin', id: number }>}
+ * @returns {Promise<{ token: string, role: 'member'|'admin', id: number, isVerified: boolean }>}
  */
 export async function loginWithPassword(phone, password) {
   if (ALLOW_DEMO_LOGIN) {
@@ -50,19 +49,36 @@ export async function loginWithPassword(phone, password) {
       localStorage.setItem('token', mockToken);
       localStorage.setItem('role', mockRole);
       localStorage.setItem('userId', String(mockId));
-      return { token: mockToken, role: mockRole, id: mockId };
+      localStorage.setItem('isVerified', '1');
+      return { token: mockToken, role: mockRole, id: mockId, isVerified: true };
     }
-  } else {
-    return loginViaApi(phone, password);
   }
+  return loginViaApi(phone, password);
 }
 
-/**
- * Clear all auth artefacts from localStorage.
- * AuthContext.logout() should call this before clearing its own state.
- */
-export function clearAuthStorage() {
-  localStorage.removeItem('token');
-  localStorage.removeItem('role');
-  localStorage.removeItem('userId');
+export async function registerAccount(payload) {
+  const { data } = await api.post('/api/auth/register/', payload);
+  return data;
 }
+
+export async function getProfile() {
+  const { data } = await api.get('/api/auth/profile/');
+  return data;
+}
+
+export async function updateProfile(payload) {
+  const { data } = await api.patch('/api/auth/profile/', payload);
+  return data;
+}
+
+export async function sendPhoneOtp() {
+  const { data } = await api.post('/api/auth/verify/send/', {});
+  return data;
+}
+
+export async function verifyPhoneOtp(code) {
+  const { data } = await api.post('/api/auth/verify/confirm/', { code: String(code).trim() });
+  return data;
+}
+
+export { clearAuthStorage } from './authStorage';

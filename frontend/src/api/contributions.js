@@ -86,6 +86,8 @@ export async function getMyContributions() {
   const raw = Array.isArray(data) ? data : data.results ?? [];
   return raw.map((c) => ({
     id: c.id,
+    /** Same FK as schedule `group_id` (DRF exposes it as `group` on list items). */
+    group_id: c.group != null ? Number(c.group) : null,
     amount: parseFloat(c.amount ?? 0),
     period: c.period ?? '',
     status: c.status ?? 'pending',

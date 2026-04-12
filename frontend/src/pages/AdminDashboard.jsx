@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useAdmin } from "../hooks/useAdmin";
-import { fmt } from "../helpers";
+import { fmt, absoluteApiUrl } from "../helpers";
 import ConfirmModal from "../components/ConfirmModal";
 import LoadingSpinner from "../components/LoadingSpinner";
 import { useSnack } from "../context/SnackContext";
@@ -137,10 +137,21 @@ export default function AdminPage() {
               <div style={{ fontSize: ".82rem", color: "var(--ink-muted)", textAlign: "center" }}>
                 Claim #{viewPdf.id} · {viewPdf.patient}<br />Amount: {fmt(viewPdf.amount)}
               </div>
-              <button className="btn btn-outline btn-sm">Download PDF</button>
+              <button
+                type="button"
+                className="btn btn-outline btn-sm"
+                disabled={!viewPdf.documents?.length}
+                onClick={() => {
+                  const u = absoluteApiUrl(viewPdf.documents[0]?.file);
+                  if (u) window.open(u, '_blank', 'noopener,noreferrer');
+                }}
+              >
+                {viewPdf.documents?.length ? 'Open bill document' : 'No document'}
+              </button>
             </div>
           </div>
         </div>
       )}
     </div>
-  )};
+  );
+}

@@ -276,6 +276,14 @@ def _csv_list(value: str) -> list[str]:
     return [x.strip() for x in (value or '').split(',') if x.strip()]
 
 
+def _allowed_hosts_from_env() -> list[str]:
+    hosts = _csv_list(env('ALLOWED_HOSTS', default=''))
+    railway_public_domain = os.environ.get('RAILWAY_PUBLIC_DOMAIN', '').strip()
+    if railway_public_domain and railway_public_domain not in hosts:
+        hosts.append(railway_public_domain)
+    return hosts
+
+
 # ── Security ───────────────────────────────────────────────────────────────────
 # Local dev: optional default. Production (DEBUG=False): set SECRET_KEY (e.g. Railway Variables).
 _DEV_SECRET_KEY = 'django-insecure-local-only-set-secret-key-env-in-production'
@@ -286,7 +294,7 @@ if not DEBUG and not _RUNNING_TESTS and SECRET_KEY == _DEV_SECRET_KEY:
         'SECRET_KEY is missing or still the dev default while DEBUG=False. '
         'Add SECRET_KEY in your host (Railway: Project → Variables → New Variable).'
     )
-ALLOWED_HOSTS = _csv_list(env('ALLOWED_HOSTS', default=''))
+ALLOWED_HOSTS = _allowed_hosts_from_env()
 
 # ── Applications ───────────────────────────────────────────────────────────────
 DJANGO_APPS = [

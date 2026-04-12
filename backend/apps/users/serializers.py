@@ -86,4 +86,5 @@ class UserProfileSerializer(serializers.ModelSerializer):
         model  = User
         fields = ['id', 'first_name', 'last_name', 'phone_number',
                   'national_id', 'email', 'is_verified', 'profile_pic', 'is_staff']
-        read_only_fields = ['is_verified', 'is_staff']
+        read_only_fields = ['is_verified', 'is_staff', 'phone_number']
+        extra_kwargs = {'national_id': {'allow_null': True, 'required': False}}

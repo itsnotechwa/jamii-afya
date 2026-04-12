@@ -11,7 +11,8 @@ const mapEmergency = (e) => ({
   status: e.status ?? 'pending',
   urgent: e.status === 'pending' && !e.amount_approved,
   patient: e.claimant_name ?? e.patient ?? 'Anonymous',
-  donations: e.donations ?? [],
+  documents: Array.isArray(e.documents) ? e.documents : [],
+  paybill: (e.paybill != null && e.paybill !== '') ? String(e.paybill).trim() : '',
 });
 
 export async function getClaims() {

@@ -1,6 +1,6 @@
 // src/pages/Login.jsx
-import { useState } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useNavigate, useLocation, Link, useSearchParams } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import Spinner from "../components/LoadingSpinner";
 
@@ -9,8 +9,18 @@ export default function LoginPage() {
   const navigate   = useNavigate();
   const location   = useLocation();
   const from       = location.state?.from?.pathname ?? "/";
+  const [searchParams] = useSearchParams();
 
   const [phone,    setPhone]    = useState("");
+  const [notice,  setNotice]   = useState("");
+
+  useEffect(() => {
+    if (searchParams.get("registered") === "1") {
+      setNotice("Account created. Sign in, then verify your phone with the code we SMS.");
+    } else {
+      setNotice("");
+    }
+  }, [searchParams]);
   const [password, setPassword] = useState("");
   const [showPw,   setShowPw]   = useState(false);
   const [loading,  setLoading]  = useState(false);
@@ -109,6 +119,12 @@ export default function LoginPage() {
           </div>
         </div>
 
+        {notice && (
+          <p style={{ fontSize: ".85rem", color: "var(--green)", textAlign: "center", marginBottom: 12 }}>
+            {notice}
+          </p>
+        )}
+
         {/* Error */}
         {err && (
           <span
@@ -129,8 +145,12 @@ export default function LoginPage() {
           {loading ? <><Spinner /> Signing in…</> : "Sign In"}
         </button>
 
+        <p style={{ fontSize: ".85rem", color: "var(--ink-muted)", textAlign: "center", marginTop: 14 }}>
+          New here? <Link to="/register">Create an account</Link>
+        </p>
+
         {/* Demo hint */}
-        <p style={{ fontSize: ".78rem", color: "var(--ink-muted)", textAlign: "center", marginTop: 14 }}>
+        <p style={{ fontSize: ".78rem", color: "var(--ink-muted)", textAlign: "center", marginTop: 10 }}>
           Demo — Admin: <strong>+254700000000</strong> / <strong>123456</strong>
           &nbsp;·&nbsp;
           Member: <strong>+254712345678</strong> / <strong>123456</strong>

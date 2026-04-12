@@ -7,9 +7,14 @@ import LoadingSpinner from '../components/LoadingSpinner';
 import StatusChip from '../components/StatusChip';
 import ProgressBar from '../components/ProgressBar';
 import { useMyContributions } from '../hooks/useMyContributions';
+import { useContributionPay } from '../context/ContributionPayContext';
+import { useSnack } from '../context/SnackContext';
+import { needsContributionPayment } from '../utils/contributionPay';
 
 export default function HistoryPage() {
   const navigate = useNavigate();
+  const { openPayModal } = useContributionPay();
+  const showSnack = useSnack();
   const [tab, setTab] = useState('claims');
 
   const {
@@ -59,6 +64,16 @@ export default function HistoryPage() {
   }
 
   const totalContributed = contributions.reduce((s, c) => s + (c.amount ?? 0), 0);
+  const showContributionPay = needsContributionPayment(schedule, contributions);
+
+  const copyClaimLink = (claimId) => {
+    const path = `/claims/${claimId}`;
+    const url = `${window.location.origin}${path}`;
+    navigator.clipboard.writeText(url).then(
+      () => showSnack('Link copied — share it to rally support.'),
+      () => showSnack('Could not copy link.', 'error'),
+    );
+  };
 
   return (
     <div className="page">
@@ -155,7 +170,13 @@ export default function HistoryPage() {
                       View Details
                     </button>
                     {d.status !== 'funded' && (
-                      <button className="btn btn-ghost btn-sm">Share Link</button>
+                      <button
+                        type="button"
+                        className="btn btn-ghost btn-sm"
+                        onClick={() => copyClaimLink(d.id)}
+                      >
+                        Copy link
+                      </button>
                     )}
                   </div>
                 </div>
@@ -168,6 +189,24 @@ export default function HistoryPage() {
       {/* ── Contributions tab ── */}
       {tab === 'contributions' && (
         <div className="card">
+          {showContributionPay && (
+            <div style={{
+              padding: '14px 20px',
+              borderBottom: '1px solid var(--border)',
+              display: 'flex',
+              flexWrap: 'wrap',
+              alignItems: 'center',
+              gap: 12,
+              justifyContent: 'space-between',
+            }}>
+              <span style={{ fontSize: '.88rem', color: 'var(--ink-secondary)' }}>
+                Monthly chama contribution ({schedule?.period}) — pay with M-Pesa STK.
+              </span>
+              <button type="button" className="btn btn-primary btn-sm" onClick={openPayModal}>
+                Pay with M-Pesa
+              </button>
+            </div>
+          )}
           {contributions.length === 0 ? (
             <div style={{ padding: '32px 20px', textAlign: 'center', color: 'var(--ink-muted)', fontSize: '.88rem' }}>
               No contributions yet.

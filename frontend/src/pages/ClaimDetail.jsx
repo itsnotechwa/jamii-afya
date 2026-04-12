@@ -1,7 +1,7 @@
 // src/pages/ClaimDetail.jsx
 import { useParams, useNavigate } from "react-router-dom";
 import { useClaimDetail } from "../hooks/useClaims";
-import { fmt, pct } from "../helpers";
+import { fmt, pct, absoluteApiUrl } from "../helpers";
 import StatusChip      from "../components/StatusChip";
 import ProgressBar     from "../components/ProgressBar";
 import CircularProgress from "../components/CircularProgress";
@@ -104,48 +104,20 @@ export default function ClaimDetail() {
               <p style={{ fontSize: ".9rem", color: "var(--ink-secondary)", lineHeight: 1.7 }}>
                 {claim.desc}
               </p>
-              <div style={{ marginTop: 14, padding: "10px 14px", background: "var(--surface-2)", borderRadius: "var(--radius-sm)", fontSize: ".82rem", color: "var(--ink-muted)" }}>
-                Paybill: <strong style={{ color: "var(--ink)" }}>{claim.paybill}</strong> · Verified by Jamii-Afya Admin
+              <div style={{ marginTop: 14, padding: "10px 14px", background: "var(--surface-2)", borderRadius: "var(--radius-sm)", fontSize: ".82rem", color: "var(--ink-muted)", lineHeight: 1.5 }}>
+                {claim.paybill ? (
+                  <>
+                    Chama collection (paybill / till):{' '}
+                    <strong style={{ color: "var(--ink)" }}>{claim.paybill}</strong>
+                    {' '}· Set by your group admin for manual M-Pesa payments.
+                  </>
+                ) : (
+                  <>
+                    No group paybill is configured for this case. Pool funding uses your{' '}
+                    <strong style={{ color: "var(--ink)" }}>monthly chama contribution</strong> (M-Pesa STK from History or the banner), not per-claim crowdfunding on this screen.
+                  </>
+                )}
               </div>
-            </div>
-          </div>
-
-          {/* Donations list */}
-          <div className="card">
-            <div style={{ padding: "20px 20px 4px" }}>
-              <div style={{ fontWeight: 700, marginBottom: 14, display: "flex", alignItems: "center", gap: 8 }}>
-                <span>💙</span> Donations ({claim.donations?.length ?? 0})
-              </div>
-
-              {(!claim.donations || claim.donations.length === 0) ? (
-                <p style={{ fontSize: ".88rem", color: "var(--ink-muted)", paddingBottom: 16 }}>
-                  No donations yet — be the first.
-                </p>
-              ) : (
-                <div className="donations-list">
-                  {claim.donations.map((d, i) => (
-                    <div key={i} className="donation-item">
-                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                        <div style={{
-                          width: 32, height: 32, borderRadius: "50%",
-                          background: "var(--blue-light)", display: "flex",
-                          alignItems: "center", justifyContent: "center",
-                          fontSize: ".85rem", fontWeight: 700, color: "var(--blue)",
-                        }}>
-                          {d.name[0]}
-                        </div>
-                        <div>
-                          <div style={{ fontWeight: 600, fontSize: ".88rem" }}>{d.name}</div>
-                          <div style={{ fontSize: ".78rem", color: "var(--ink-muted)" }}>{d.ago}</div>
-                        </div>
-                      </div>
-                      <div style={{ fontWeight: 700, color: "var(--green)", fontSize: ".9rem" }}>
-                        {fmt(d.amount)}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
             </div>
           </div>
         </div>
@@ -159,7 +131,17 @@ export default function ClaimDetail() {
               <div style={{ fontSize: ".8rem", color: "var(--ink-muted)", textAlign: "center" }}>
                 PDF document attached<br />Verified by Jamii-Afya
               </div>
-              <button className="btn btn-outline btn-sm">View Full PDF</button>
+              <button
+                type="button"
+                className="btn btn-outline btn-sm"
+                disabled={!claim.documents?.length}
+                onClick={() => {
+                  const u = absoluteApiUrl(claim.documents[0]?.file);
+                  if (u) window.open(u, '_blank', 'noopener,noreferrer');
+                }}
+              >
+                {claim.documents?.length ? 'View bill document' : 'No bill uploaded'}
+              </button>
             </div>
           </div>
 
@@ -167,7 +149,6 @@ export default function ClaimDetail() {
         </div>
       </div>
 
-      {/* Sticky donate bar */}
       <div className="sticky-donate">
         <button className="btn btn-ghost" onClick={() => navigate("/")}>← Back</button>
       </div>

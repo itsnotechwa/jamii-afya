@@ -2,40 +2,71 @@ import React from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from './hooks/useAuth';
 import Layout from './components/Layout';
+import LoadingSpinner from './components/LoadingSpinner';
 
-// Pages (lazy-loaded to keep initial bundle small)
 import Home from './pages/Home';
 import Login from './pages/Login';
+import Register from './pages/Register';
+import VerifyPhone from './pages/VerifyPhone';
+import Profile from './pages/Profile';
 import ClaimDetail from './pages/ClaimDetail';
 import NewClaim from './pages/NewClaim';
 import AdminDashboard from './pages/AdminDashboard';
 import History from './pages/History';
 
 /**
- * PrivateRoute
- * - Redirects to /login if not authenticated.
- * - Redirects to / if authenticated but role not in allowedRoles.
- *
- * @param {{ allowedRoles?: string[], children: React.ReactNode }} props
+ * @param {{ allowedRoles?: string[], skipPhoneVerification?: boolean, children: React.ReactNode }} props
  */
-function PrivateRoute({ allowedRoles, children }) {
-  const { isAuthenticated, role } = useAuth();
+function PrivateRoute({ allowedRoles, skipPhoneVerification, children }) {
+  const { isAuthenticated, role, isVerified, authReady } = useAuth();
   const location = useLocation();
 
   if (!isAuthenticated) {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
+  if (!authReady) {
+    return (
+      <div className="page" style={{ display: 'flex', justifyContent: 'center', paddingTop: 80 }}>
+        <LoadingSpinner dark />
+      </div>
+    );
+  }
+
   if (allowedRoles && !allowedRoles.includes(role)) {
     return <Navigate to="/" replace />;
+  }
+
+  if (!skipPhoneVerification && isVerified === false && location.pathname !== '/verify-phone') {
+    return <Navigate to="/verify-phone" replace state={{ from: location }} />;
+  }
+
+  if (location.pathname === '/verify-phone' && isVerified === true) {
+    const from = location.state?.from;
+    if (from?.pathname) {
+      return (
+        <Navigate
+          replace
+          to={{
+            pathname: from.pathname,
+            search: from.search ?? '',
+            hash: from.hash ?? '',
+          }}
+          state={from.state}
+        />
+      );
+    }
+    return <Navigate to="/" replace />;
+  }
+
+  // No shell/nav during phone verification (like /login) — avoids Profile → /profile → bounce back here.
+  if (location.pathname === '/verify-phone') {
+    return children;
   }
 
   return <Layout>{children}</Layout>;
 }
 
-/**
- * PublicOnlyRoute – redirects already-authenticated users away from /login.
- */
 function PublicOnlyRoute({ children }) {
   const { isAuthenticated } = useAuth();
   return isAuthenticated ? <Navigate to="/" replace /> : children;
@@ -44,7 +75,6 @@ function PublicOnlyRoute({ children }) {
 export default function AppRoutes() {
   return (
     <Routes>
-      {/* Public */}
       <Route
         path="/login"
         element={
@@ -53,8 +83,24 @@ export default function AppRoutes() {
           </PublicOnlyRoute>
         }
       />
+      <Route
+        path="/register"
+        element={
+          <PublicOnlyRoute>
+            <Register />
+          </PublicOnlyRoute>
+        }
+      />
 
-      {/* Any authenticated user */}
+      <Route
+        path="/verify-phone"
+        element={
+          <PrivateRoute skipPhoneVerification>
+            <VerifyPhone />
+          </PrivateRoute>
+        }
+      />
+
       <Route
         path="/"
         element={
@@ -91,7 +137,15 @@ export default function AppRoutes() {
         }
       />
 
-      {/* Admin only */}
+      <Route
+        path="/profile"
+        element={
+          <PrivateRoute>
+            <Profile />
+          </PrivateRoute>
+        }
+      />
+
       <Route
         path="/admin"
         element={
@@ -101,7 +155,6 @@ export default function AppRoutes() {
         }
       />
 
-      {/* Catch-all */}
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

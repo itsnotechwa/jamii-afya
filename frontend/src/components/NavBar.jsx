@@ -1,7 +1,6 @@
 // src/components/NavBar.jsx
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
-import AdminPage from "../pages/AdminDashboard";
 
 export default function Navbar() {
   const navigate     = useNavigate();
@@ -60,6 +59,14 @@ export default function Navbar() {
           onClick={() => navigate("/history")}
         >
           History
+        </button>
+
+        <button
+          className={`nav-btn ${pathname === "/profile" ? "active" : ""}`}
+          aria-current={pathname === "/profile" ? "page" : undefined}
+          onClick={() => navigate("/profile")}
+        >
+          Profile
         </button>
 
         {role === "admin" && (

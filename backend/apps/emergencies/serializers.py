@@ -22,12 +22,13 @@ class EmergencyRequestSerializer(serializers.ModelSerializer):
     approvals    = EmergencyApprovalSerializer(many=True, read_only=True)
     claimant_name = serializers.CharField(source='claimant.get_full_name', read_only=True)
     approval_count = serializers.SerializerMethodField()
+    paybill = serializers.CharField(source='group.paybill_number', read_only=True)
 
     class Meta:
         model  = EmergencyRequest
         fields = ['id', 'group', 'claimant', 'claimant_name', 'emergency_type',
                   'description', 'amount_requested', 'amount_approved', 'status',
-                  'payout_phone', 'rejection_reason', 'mpesa_ref',
+                  'payout_phone', 'rejection_reason', 'mpesa_ref', 'paybill',
                   'approval_count', 'documents', 'approvals', 'created_at', 'resolved_at']
         read_only_fields = ['claimant', 'status', 'amount_approved',
                             'rejection_reason', 'mpesa_ref', 'resolved_at']

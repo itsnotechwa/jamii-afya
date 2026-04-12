@@ -5,7 +5,6 @@ import { useClaims } from "../hooks/useClaims";
 import { fmt, pct } from "../helpers";              
 import StatusChip from "../components/StatusChip";
 import ProgressBar from "../components/ProgressBar";
-import ContributeModal from "../components/ModalContribute";
 import Snackbar from "../components/SnackBar";
 import LoadingSpinner from "../components/LoadingSpinner";
 
@@ -92,7 +91,7 @@ export default function HomePage() {
         </div>
         <button
           className="banner-cta"
-          onClick={() => navigate("claims/new")}
+          onClick={() => navigate("/claims/new")}
         >
           + Submit a Claim →
         </button>
@@ -121,11 +120,11 @@ export default function HomePage() {
           </div>
         </div>
 
-        <div className="stat-card">
-          <div className="stat-label">Donors Today</div>
-          {/* This number is still static in the original design; you could
-              calculate it from the data if you have it. */}
-          <div className="stat-value">47</div>
+        <div className="stat-card" title="Active emergencies with some funds approved toward the goal">
+          <div className="stat-label">Receiving funds</div>
+          <div className="stat-value">
+            {claims.filter((c) => (Number(c.funded) || 0) > 0).length}
+          </div>
         </div>
       </div>
 
@@ -181,18 +180,10 @@ export default function HomePage() {
               <div className="claim-actions">
                 <button
                   className="btn btn-outline btn-sm"
-                  onClick={() => {
-                    navigate(`/claims/${claim.id}`);
-                  }}
+                  onClick={() => navigate(`/claims/${claim.id}`)}
                 >
                   View Details
                 </button>
-
-                {claim.status === "approved" && (
-                  <button className="btn btn-outline btn-sm" onClick={() => navigate(`/claims/${claim.id}`)}>
-                    View Details
-                  </button>
-                )}
               </div>
             </div>
           );
